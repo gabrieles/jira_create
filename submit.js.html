@@ -1,0 +1,158 @@
+<script>
+function makeItSortable() {
+	var list = document.getElementById("acceptWrapper");
+	Sortable.create(list);
+}
+
+function checkKey(key,elem) {
+	if (key.which == 13 || key.keyCode == 13) {
+		key.preventDefault();
+		var parEl = elem.parentNode;
+		createNewAccept(parEl);
+	}
+}
+
+function addAccept() {
+	var elem = document.getElementById("acceptWrapper").lastChild;
+	createNewAccept(elem);
+}
+
+function createNewAccept(el) {
+	if ($("#focusOn").length > 0) { var focusElem = document.getElementById("focusOn").removeAttribute("id"); }
+	var newRow = document.createElement("li");
+	newRow.innerHTML = '<span class="drag-handle">☰</span><div id="focusOn" contenteditable="true" class="field accept" tabindex="0" onkeypress="checkKey(event, this)" ></div><span class="delete" onclick="deleteThis(this)">x</span>'; 
+    el.parentNode.insertBefore(newRow,el.nextSibling);
+	focusElem = document.getElementById("focusOn");
+	focusElem.focus();
+	makeItSortable();
+}
+
+function deleteThis(el) {
+	var elPar = el.parentNode;
+	el.parentNode.parentNode.removeChild(elPar);
+	makeItSortable();
+}
+
+function auto_grow(element) {
+    element.style.height = (element.scrollHeight)+"px";
+}
+
+markdownSettings = {
+	previewParserPath:	'',
+	onShiftEnter: {keepDefault:false, openWith:'\n\n'},
+	markupSet: [
+		{name:'Bold', key:'B', openWith:'*', closeWith:'*'},
+		{name:'Italic', key:'I', openWith:'_', closeWith:'_'},
+		{name:'Underline', key:'U', openWith:'+', closeWith:'+'},
+		{separator:'', key:'SEP' },
+		
+		{name:'Bulleted List', key:'O', openWith:'* ' },
+		{name:'Numeric List', key:'L', openWith:'# '},
+		{name:'Checkbox', key:'X', openWith:'(x) '},
+        {name:'Question mark', key:'Q', openWith:'(?) '},
+		{separator:'', key:'SEP' },
+		
+		{name:'Link', key:'K', openWith:'[', closeWith:'|[![Url:!:http://]!]]', placeHolder:"link"  },
+		{separator:'', key:'SEP'},	
+
+		{name:'Heading 3', key:'3', openWith:'h3. ', closeWith:' '},
+		{name:'Heading 4', key:'4', openWith:'h4. ', closeWith:' '},
+		{separator:'', key:'SEP' },	
+		
+		{name:'Red alert', key:'R', openWith:'{panel:title=|borderColor=#ccc|bgColor=#F7D6C1}\n', closeWith:'\n{panel}'},
+		{name:'Yellow warning', key:'Y', openWith:'{panel:title=|borderColor=#ccc|bgColor=#FFFFCE}\n', closeWith:'\n{panel}'},
+		//{name:'Grey Panel', key:'G', openWith:'{panel|bgColor=#dedede|borderColor=#ccc}\n', closeWith:'\n{panel}'},
+		{name:'HTML', key:'CH', openWith:'{code:html}\n', closeWith:'\n{code}'},
+		//{name:'CSS', key:'CS', openWith:'{code:css}\n', closeWith:'\n{code}'},
+		//{name:'Javascript', key:'CJ', openWith:'{code:javascript}\n', closeWith:'\n{code}'},
+		//{name:'C#', key:'CC', openWith:'{code:C#}\n', closeWith:'\n{code}'},
+		//{separator:'', key:'SEP'},		
+		
+	]
+}
+
+//function to prepare the data. Pretty dumb at the moment, but I can add more logic later
+function prepareStory(){
+  return prepareData("Story");
+}
+
+function prepareTask(){
+  return prepareData("Task");
+}
+
+
+
+// prepare data. The output needs to be in the form:
+//{
+//    "fields":
+//    {
+//        "project":
+//        {
+//            "key": "TEST"
+//        },
+//        "parent":
+//        {
+//            "key": "TEST-101"
+//        },
+//        "summary": "Sub-task of TEST-101",
+//        "description": "Don't forget to do this too.",
+//        "issuetype":
+//        {
+//            "name": "Bug"
+//        }
+//    }
+//}
+function prepareData(issueType) {
+  var jiraObj = {};
+  var outObj = {};
+  
+  var proK = document.getElementById("proKey").innerText;
+  
+  outObj.project = {};
+  outObj.project.key = proK;
+  outObj.summary = document.getElementById("title").innerText;
+  
+  var newLine = "\n\r";
+  
+  var descr = $("#userStory").text().replace( /\n/g, newLine ) + ' ' + newLine + ' ' + newLine;
+  
+  descr += 'h2. Acceptance criteria ' + newLine;
+  $('.accept').each( function(){
+   if ($(this).text()) { descr += '(x) ' + $(this).text() + '\n'; }
+  });
+  var notesText = $("#notes").val().replace( /\n/g, newLine );
+  if (notesText) {
+    descr += 'h2. Notes ' + newLine;
+    descr += notesText;
+  }
+  outObj.description = descr;
+  outObj.issuetype = {"name" : issueType};
+  
+  var epicEl = document.getElementById("epic");
+  var epicKey = epicEl.options[epicEl.selectedIndex].value;
+  if (epicKey != "none") { 
+    // customfield_10008 is the "Epic Link" field
+    outObj.customfield_10008 = epicKey;
+  }
+  
+  jiraObj.fields = outObj;
+  var outString = JSON.stringify(jiraObj);
+  return outString;
+}
+
+
+function clearForm(){
+  $("#title").empty();
+  $("#userStory").empty();
+  $('#acceptWrapper li').each( function(){
+    $(this).remove();
+  });
+  addAccept();
+  $('#notes').val('');
+  $("#responseWrapper").empty();
+}
+
+
+</script>
+
+

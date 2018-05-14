@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <script src="//code.jquery.com/jquery-3.3.1.min.js"></script>
+    <?!= getContent('sortable'); ?>
+    <?!= getContent('submit.js'); ?>
+    <?!= getContent('jquery.markitup.js'); ?>
+    <?!= getContent('submit.css'); ?>
+  </head>
+  <body>
+   
+    <div id="proKey" style="display:none"><?!= printVal('projectKey'); ?></div>
+    <div id="wrapper">
+	<div id="page"> 
+		<div id="elements">
+			
+            <div class="fieldWrapper">
+				<h2>Epic</h2>
+                  <select id="epic" class="field" tabindex="0">
+                    <option value="none" selected="selected">None</option>
+                    <?!= printOptionsForEpic();  ?>
+                  </select>  
+			</div>
+            
+			<div class="fieldWrapper">
+				<h2>Title</h2>
+				<div contenteditable="true" class="field" id="title" tabindex="0"></div>
+			</div>
+			
+			<div class="fieldWrapper">
+				<h2>User story</h2>
+				<div contenteditable="true" class="field" id="userStory" tabindex="0"></div>
+			</div>
+			
+			<div class="fieldWrapper">
+				<h2>Acceptance criteria</h2>
+				<ul id="acceptWrapper">
+					<li><span class="drag-handle">☰</span><div id="focusOn" contenteditable="true" class="field accept" tabindex="0" onkeypress="checkKey(event, this)" ></div><span class="delete" onclick="deleteThis(this)">x</span></li>
+				</ul>
+				<div id="addAccept" class="divButton" onclick="addAccept()">Add</div>
+			</div>
+			
+			<div class="fieldWrapper">
+				<h2>Notes</h2>
+				<div class="field textareaWrapper"> <textarea onkeyup="auto_grow(this)" class="" id="notes" tabindex="0"></textarea>	</div>
+			</div>
+            
+			<div class="fieldWrapper">
+              <div id="submitIssue" class="divButton" onclick="var outV = prepareStory(); var rText = google.script.run.JIRAsubmit(outV); clearForm();">Create issue</div> 
+              <div id="JIRAsubmit"  class="divButton" onclick="var outV = prepareTask();  var rText = google.script.run.JIRAsubmit(outV); clearForm();">Create Task</div>
+            </div>
+            
+            <div class="fieldWrapper">
+               <div id="responseWrapper"></div>
+            </div>
+        </div>	
+	</div>
+</div>
+
+
+<script>
+$(document).ready(function()	{
+    makeItSortable();
+	$('#notes').markItUp(markdownSettings);
+});
+</script>
+    
+    
+  </body>
+</html>
+
+
