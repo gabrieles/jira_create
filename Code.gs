@@ -1,4 +1,6 @@
 var sheetID = "19LhOLxFuOVHx2bE5BrZQVdUDK5Re3A0T4U6Fe6c0KO8"; //needed as you cannot use getActiveSheet() while the sheet is not in use (as in a standalone application like this one)
+var favicon_url = 'http://icons.iconarchive.com/icons/iconsmind/outline/32/Quill-3-icon.png';
+
 
 // ******************************************************************************************************
 // Function to create menus when you open the sheet
@@ -24,7 +26,7 @@ function doGet(e) {
                    .setSandboxMode(HtmlService.SandboxMode.IFRAME)
                    .setTitle('JIRA Create')
                    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-                   .setFaviconUrl('http://icons.iconarchive.com/icons/iconsmind/outline/32/Quill-3-icon.png');
+                   .setFaviconUrl(favicon_url);
 
   return htmlOutput;
 };

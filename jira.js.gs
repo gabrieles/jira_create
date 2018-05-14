@@ -1,3 +1,5 @@
+var host = "jobladder.atlassian.net"; //where your JIRA is
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
 // The MIT License (MIT)
 // 
@@ -31,11 +33,10 @@ var C_MAX_RESULTS = 1000;
 
 function jiraConfigure() {
   
-  var host = "jobladder.atlassian.net"
   //var host = Browser.inputBox("Enter the host name of your on demand instance e.g. toothCamp.atlassian.net", "Host", Browser.Buttons.OK);
   PropertiesService.getUserProperties().setProperty("host", host);
   
-  var userID = Browser.inputBox("Enter your Jira UserID/email", "yourname@charityjob.co.uk", Browser.Buttons.OK_CANCEL);
+  var userID = Browser.inputBox("Enter your Jira UserID/email", "yourname@email.com", Browser.Buttons.OK_CANCEL);
   var userPassword = Browser.inputBox("Enter your Jira Password (Note: This will be base64 Encoded and saved as a property on the spreadsheet)", "Password", Browser.Buttons.OK_CANCEL);
   var userAndPassword = userID + ':' + userPassword;
   var x = Utilities.base64Encode(userAndPassword);
