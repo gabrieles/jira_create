@@ -3,11 +3,41 @@ function makeDisplaySortable() {
   var list = document.getElementById("acceptWrapper");
   $( "#Parked, #Idea, #Planned" ).sortable({
     connectWith: ".sortable-area",
+    start: function(event, ui) {
+      var start_pos = ui.item.index();
+      ui.item.attr('data-rank',start_pos); 
+    },
     stop: function(event, ui) {
-        var end_pos = ui.item.index();
         var parentID = ui.item.parent().attr('id');       
-        var itemCol = ui.item.attr('data-column');
-        console.log('iID: ' + itemCol);
+        var itemCol = ui.item.attr('data-column'); 
+        var start_pos =  ui.item.attr('data-rank');
+        var end_pos = ui.item.index();
+        var issueID = ui.item.attr('id');
+        //if the issue is above another one
+        if (ui.item.next('li').length > 0){
+          var prevIssueID = ui.item.next('li').attr('id');
+        } else {
+          //if there is no issue after this one in the same column, place it above the first issue in the previous column 
+          var prevColIssuesContainer = ui.item.parent().parent().prev('.column').children('.item-container');
+          if(prevColIssuesContainer.children('li').length >0) {
+            var prevIssueID = $(prevColIssuesContainer).children('li').first().attr('id');
+          } else {
+          //if there are no issues in the previous column, place it at the bottom of the column after this one
+            var nextColIssuesContainer = ui.item.parent().parent().next('.column').children('.item-container');
+            if(nextColIssuesContainer.children('li').length >0) {
+               var nextIssueID = $(nextColIssuesContainer).children('li').last().attr('id');
+               google.script.run.updateRank(issueID,prevIssueID);
+               var dummy = prevIssueID;
+               prevIssueID = issueID;
+               issueID = dummy;
+            }
+          } //if there are no issues in the column where you are moving, or the column before or after, do nothing.
+        }
+        if (end_pos != start_pos || parentID != itemCol ) {
+          google.script.run.updateRank(issueID,prevIssueID)
+        }
+        
+        //if in a new column, change the label 
         if (parentID != itemCol) {
           var issueID = ui.item.attr('id');
           ui.item.addClass('moved');

@@ -23,10 +23,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-//code extensively modified by Gabriele Sani - gabrielesani@gmail.com
+//code extensively modified by Gabriele Sani - gabrielesani @ gmail.com
 
 
 var C_MAX_RESULTS = 1000;
+var default_sheetName = 'SM';
+
 
 
 function jiraConfigure() {
@@ -87,7 +89,6 @@ function getFields() {
 }  
 
 
-
 function getStories() {
   var allData = {issues:[]};
   var data = {startAt:0,maxResults:0,total:1};
@@ -108,7 +109,7 @@ function getStories() {
     //data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20type%20in%20(story,task,bug)%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     
     //removed filter on issue type
-    data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
+    data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20issuetype%20in%20(story,task,bug)%20order%20by%20rank%20asc%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     
     allData.issues = allData.issues.concat(data.issues);
     startAt = data.startAt + data.maxResults;
@@ -195,6 +196,9 @@ function sendMetaToLogger(){
 
 
 function jiraPull(sheetName) {
+  
+  //set default sheetname if missing
+  sheetName = typeof sheetName !== 'undefined' ? sheetName : default_sheetName;
   
   //get the prefix and search keyword from the sheet name  
   if (sheetName.indexOf("-") >0) {

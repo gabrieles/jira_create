@@ -1,6 +1,6 @@
 var sheetID = "19LhOLxFuOVHx2bE5BrZQVdUDK5Re3A0T4U6Fe6c0KO8"; //needed as you cannot use getActiveSheet() while the sheet is not in use (as in a standalone application like this one)
 var favicon_url = 'https://icons.iconarchive.com/icons/iconsmind/outline/32/Quill-3-icon.png';
-
+var def_sheetName = 'SM';
 
 // ******************************************************************************************************
 // Function to create menus when you open the sheet
@@ -142,7 +142,7 @@ function sheet2Json(sheetName) {
 // ******************************************************************************************************
 function printColumnsWithItems(){
   
-  var itemJSON = sheet2Json("SM");
+  var itemJSON = sheet2Json(def_sheetName);
   
   var htmlParked = '';
   var htmlIdeas = '';
@@ -211,7 +211,7 @@ function printColumnsWithItems(){
 		         htmlOngoing +
 		       '</div>' +
              '</div>';
-  outHTML += '<div class="column" id="Done-wrapper">' +
+  outHTML += '<div class="column" id="Done-wrapper" style="display: none;">' +
 		       '<h2>Done</h2>' +
 		       '<div class="item-container" id="Done">' +
 		         htmlDone +
