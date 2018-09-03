@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <script src="//code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
+    <?!= getContent('sortable'); ?>
+    <?!= getContent('display.js'); ?>
+    <?!= getContent('display.css'); ?>  
+  </head>
+  <body>
+     <div id="proKey" style="display:none"><?!= printVal('projectKey'); ?></div>
+     <div id="wrapper">
+       <div id="page">
+         <div id="header">
+           <a id="create-item" class="button create" target="_blank" href="https://script.google.com/macros/s/AKfycbzbKAXdS5xT3h1yqpXI66asV8Hj21ch_M_4wcXuDLtjT4TYROiE/exec?action=create">Create new</a>
+           <a id="toggle-done" class="button toggle" href="javascript:toggleButton('Done-wrapper')">Toggle Done</a>
+           <a id="toggle-parked" class="button toggle" href="javascript:toggleButton('Parked-wrapper')">Toggle Parked</a>
+           <a id="toggle-parked" class="button toggle" href="javascript:refreshPage();">Refresh Data</a>
+         </div>
+         <div id="content">
+           <div id="loader-wrapper"><div class="loader" style="display:none">Loading...</div></div>
+           <?!= printColumnsWithItems();  ?>
+         </div>
+       </div>
+     </div>  
+     <script>
+       $(document).ready(function()	{
+         makeDisplaySortable();
+       });
+    </script>
+  </body>
+</html>
+
+

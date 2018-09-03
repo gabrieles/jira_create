@@ -1,0 +1,36 @@
+<script>
+function makeDisplaySortable() {
+  var list = document.getElementById("acceptWrapper");
+  $( "#Parked, #Idea, #Planned" ).sortable({
+    connectWith: ".sortable-area",
+    stop: function(event, ui) {
+        var end_pos = ui.item.index();
+        var parentID = ui.item.parent().attr('id');       
+        var itemCol = ui.item.attr('data-column');
+        console.log('iID: ' + itemCol);
+        if (parentID != itemCol) {
+          var issueID = ui.item.attr('id');
+          ui.item.addClass('moved');
+          console.log('issueID: ' + issueID + ', parentID: ' + parentID + ', itemCol: ' +itemCol);
+          google.script.run.editJiraLabel(issueID,parentID,itemCol)
+          ui.item.attr('data-column',parentID);
+        }
+        console.log('u: ' + end_pos);
+    }
+  }).disableSelection();
+}
+
+function toggleButton(columnID){
+  $('#' + columnID).toggle('500');
+}
+
+function refreshPage(){
+  $('.loader').show();
+  $.when( google.script.run.jiraPull('SM') ).then(function() {
+    console.log('Sheet data has been refreshed');
+    $('.loader').hide();
+    location.reload();
+  });
+}
+
+</script>

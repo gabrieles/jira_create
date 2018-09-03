@@ -1,5 +1,3 @@
-var host = "jobladder.atlassian.net"; //where your JIRA is
-
 // ---------------------------------------------------------------------------------------------------------------------------------------------------
 // The MIT License (MIT)
 // 
@@ -45,9 +43,6 @@ function jiraConfigure() {
   var projectKey = Browser.inputBox("Enter your Jira Board Key (it will be an acronym, like CJ or SM)", "ProjectKey", Browser.Buttons.OK_CANCEL);
   PropertiesService.getUserProperties().setProperty("projectKey", projectKey);
   
-  //var issueTypes = Browser.inputBox("Enter a comma separated list of the types of issues you want to import  e.g. story or story,epic,bug", "Issue Types", Browser.Buttons.OK);
-  //PropertiesService.getUserProperties().setProperty("issueTypes", issueTypes);
-
   Browser.msgBox("Jira configuration saved successfully.");
 }  
 
@@ -80,8 +75,8 @@ function scheduleRefresh() {
 
 
 function jiraPullManual() {
-  jiraPull();
-  cleanData();
+  var sheetName = SpreadsheetApp.getActiveSpreadsheet().getSheetName();
+  jiraPull(sheetName);
   Browser.msgBox("Jira backlog successfully imported");
 }  
 
@@ -97,13 +92,15 @@ function getStories() {
   var allData = {issues:[]};
   var data = {startAt:0,maxResults:0,total:1};
   var startAt = 0;
-  var searchFilter = "";
+  
   var searchKeyword = PropertiesService.getUserProperties().getProperty("searchKeyword");
   if (searchKeyword) {
     //make sure that this will not break the GET call
-    searchKeyword = '%22' + encodeURI(searchKeyword) + '%22';
-    searchFilter = "%20and%20text%20~%20" + searchKeyword;
+    var searchFilter = "%20and%20text%20~%20" + '%22' + encodeURI(searchKeyword) + '%22';;
+  } else {
+    var searchFilter = "";  
   }
+  Logger.log('searchFilter: ' + searchFilter);
   
   while (data.startAt + data.maxResults < data.total) {
     Logger.log("Making request for %s entries", C_MAX_RESULTS);  
@@ -128,7 +125,7 @@ function printOptionsForEpic() {
   var startAt = 0;
   
   while (data.startAt + data.maxResults < data.total) {
-    Logger.log("Making request for %s entries", C_MAX_RESULTS);  
+    Logger.log("Making request for %s epics", C_MAX_RESULTS);  
     //data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20type%20in%20("+ PropertiesService.getUserProperties().getProperty("issueTypes") + ")%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     //data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20type%20in%20(story,task,bug)%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     
@@ -153,11 +150,11 @@ function getDataForAPI(path) {
    var digestfull = PropertiesService.getUserProperties().getProperty("digest");
   
   var headers = { "Accept":"application/json", 
-              "Content-Type":"application/json", 
-              "method": "GET",
-               "headers": {"Authorization": digestfull},
-                 "muteHttpExceptions": true              
-             };
+                  "Content-Type":"application/json", 
+                  "method": "GET",
+                  "headers": {"Authorization": digestfull},
+                  "muteHttpExceptions": true              
+                 };
   
   var resp = UrlFetchApp.fetch(url,headers );
   if (resp.getResponseCode() != 200) {
@@ -197,18 +194,20 @@ function sendMetaToLogger(){
 
 
 
-function jiraPull() {
+function jiraPull(sheetName) {
   
-  //get the prefix and search keyword from the sheet name
-  var sheetName = SpreadsheetApp.getActiveSpreadsheet().getSheetName();
-  var prefix = sheetName;
-  
-  if (prefix.indexOf("-") >0) {
-    var dummy = prefix.split("-");
-    prefix = dummy[0];
+  //get the prefix and search keyword from the sheet name  
+  if (sheetName.indexOf("-") >0) {
+    var dummy = sheetName.split("-");
+    var prefix = dummy[0];
     var searchKeyword = dummy[1];
     PropertiesService.getUserProperties().setProperty("searchKeyword",searchKeyword);
+  } else {
+    var prefix = sheetName;
+    PropertiesService.getUserProperties().setProperty("searchKeyword","");
   }
+  
+  
   
   //if you are on the instructins page, ask for the prefix
   if (prefix == "Instructions") {
@@ -263,63 +262,54 @@ function jiraPull() {
   if (y.length > 0) {
     ss.getRange(2, 1, data.issues.length,y[0].length).setValues(y);
   }
-   
+  
+  cleanData(sheetName);
 }
 
 
-
-
-function cleanData() {
+function cleanData(sheetName) {
   
-  var prefix = SpreadsheetApp.getActiveSpreadsheet().getSheetName();
-  var ss = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(prefix);
+  var ss = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   var last = ss.getLastRow();
   
   var headings = ss.getRange(1, 1, 1, ss.getLastColumn()).getValues()[0];
-  var extractArray = new Array(headings.length);
-  
-  //check if there is a "." in a headings name
-  for (ii=0;ii<headings.length;ii++) {
-    if (headings[ii].indexOf(".")) {
-       var dummy = headings[ii].split(".");
-       headings[ii] = dummy[0];
-       extractArray[ii] = dummy[1];
-    } else {
-      extractArray = "";
+    
+  //clean up the output of columns with a "."
+  for (var j=1;j<headings.length+1;j++) {
+    var headingVal = headings[j-1];
+    if (headingVal.indexOf(".") != -1 ) {
+      Logger.log(headingVal);
+      var range = ss.getRange(2,j,last,j);
+      var values = range.getValues();
+      var dummyVal = headingVal.split(".")[1];
+      for (var k=0; k<last; k++) {
+        if(values[k][0].indexOf(dummyVal) != -1 ) {
+          var startExt = values[k][0].indexOf(dummyVal);
+          if (startExt > 0 ) {
+            var endExt = values[k][0].indexOf(',',startExt);     
+            values[k][0] = values[k][0].slice(startExt + dummyVal.length + 1,endExt);
+          }
+        }  
+      }
+      range.setValues(values);
     }
   }
-  
-  //import the moment.js library to convert dates - deprectaed for copying in the code into a local file
-  //eval(UrlFetchApp.fetch('https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.20.1/moment.min.js').getContentText());
-  
-  
-  //clean up the output
-  var dummyVal;
+
+  //check if a column has dates in the JIRA format, and if so trim the values  
   var regexDate = /20\d{2}(-|\/)((0[1-9])|(1[0-2]))(-|\/)((0[1-9])|([1-2][0-9])|(3[0-1]))(T|\s)(([0-1][0-9])|(2[0-3])):([0-5][0-9]):([0-5][0-9]).([0-9][0-9][0-9]\+[0-9][0-9][0-9][0-9])/
-  for (jj=0;jj<extractArray.length+1;jj++) {
-    
-    if (extractArray[jj]) {
-      for (kk=2;kk<last+1;kk++) {
-        dummyVal = ss.getRange(kk,jj+1).getValue();
-        var startExt = dummyVal.indexOf(extractArray[jj]);
-        if (startExt > 0 ) {
-          var endExt = dummyVal.indexOf(',',startExt);     
-          ss.getRange(kk,jj+1).setValue(dummyVal.slice(startExt + extractArray[jj].length + 1,endExt));
-        }
-      }
-    }
-    
-    //check if a column has dates, and trim it
-    dummyVal = ss.getRange(2,jj+1).getValue();
+  var testValues = ss.getRange(2, 1, 2, ss.getLastColumn()).getValues()[0];
+  
+  for (var i=1;i<testValues.length+1;i++) {
+
+    dummyVal = testValues[i-1];
     if (dummyVal.length == 28) {
       if (dummyVal.match(regexDate)) {
-        for (kkk=2;kkk<last+1;kkk++) {
-          //commented out since I do not see the need to use moment.js at this stage
-          //dummyVal = ss.getRange(kkk,jj+1).getValue().substring(0,19);
-          //ss.getRange(kk,jj+1).setValue( moment(dummyVal).format('YYYY/MM/DD') );
-          dummyVal = ss.getRange(kkk,jj+1).getValue().substring(0,10);
-          ss.getRange(kkk,jj+1).setValue( dummyVal );
+        var dateRange = ss.getRange(2,i,last,i);
+        var dateValues = dateRange.getValues();
+        for (var h=0; h<last; h++) {
+          dateValues[h][0] = dateValues[h][0].substring(0,10);
         }
+        dateRange.setValues(dateValues);       
       }
     }
   }  
@@ -405,4 +395,50 @@ function getFieldName(heading,fields) {
   }
   return "";
 }  
-        
+
+
+// see https://docs.atlassian.com/jira-software/REST/7.3.1/#agile/1.0/issue-rankIssues for details
+function updateRank(IssueMovedID,BeforeIssueID) {
+  var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/agile/1.0/issue/rank";
+  var digestfull = PropertiesService.getUserProperties().getProperty("digest");
+  var payload = '{"issues":["' + IssueMovedID + '"],"rankBeforeIssue":"' + BeforeIssueID + '"}';
+  var headers = { "method":"PUT",
+                  "contentType":"application/json",
+                  "headers":{"Authorization": digestfull},
+                  "payload": payload,
+                  "muteHttpExceptions":true
+                 };
+  
+  var resp = UrlFetchApp.fetch(url,headers);
+  if (resp.getResponseCode() != 204) {
+    Logger.log("Error " + resp.getResponseCode() + " updating rank for " + IssueMovedID + " to be placed before: " + BeforeIssueID + " Response Text: " + resp.getContentText());
+    return "";
+  } else {
+    Logger.log("Success: moved item " + IssueMovedID + " above item " + BeforeIssueID);
+  }    
+}  
+
+
+function editJiraLabel(IssueID,addLabelValue,removeLabelValue) {
+  var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/api/2/issue/" + IssueID;
+  var digestfull = PropertiesService.getUserProperties().getProperty("digest");
+  if (removeLabelValue) {
+    var payload = '{ "update": { "labels": [ {"add" : "' + addLabelValue + '"},{"remove" : "' + removeLabelValue + '"}  ] } }';
+  } else {
+    var payload = '{ "update": { "labels": [ {"add" : "' + addLabelValue + '"} ] } }';
+  }
+  var headers = { "method":"PUT",
+                  "contentType":"application/json",
+                  "headers":{"Authorization": digestfull},
+                  "payload": payload,
+                  "muteHttpExceptions":true
+                 };
+  
+  var resp = UrlFetchApp.fetch(url,headers);
+  if (resp.getResponseCode() != 204) {
+    Logger.log("Error " + resp.getResponseCode() + " updating label for " + IssueID + " Response Text: " + resp.getContentText());
+    return "";
+  } else {
+    Logger.log("Success: updated label for " + IssueID + ". Added " + addLabelValue + " and removed " + removeLabelValue);
+  }    
+} 
