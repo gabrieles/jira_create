@@ -54,13 +54,17 @@ function toggleButton(columnID){
   $('#' + columnID).toggle('500');
 }
 
-function refreshPage(){
+function refreshApp(newHtml) {
+  document.open();
+  document.write(newHtml);
+  document.close();
+}
+      
+async function refreshPage(){
   $('.loader').show();
-  $.when( google.script.run.jiraPull('SM') ).then(function() {
-    console.log('Sheet data has been refreshed');
-    $('.loader').hide();
-    location.reload();
-  });
+  await google.script.run.jiraPull('SM');
+  await google.script.run.withSuccessHandler(refreshApp).returnRoadmapHtml();
+  
 }
 
 
@@ -74,7 +78,7 @@ $.extend($.expr[":"], {
  
 function filterItems() {
   var dummy = $('#filter').val();
-  if (dummy.length > 2){
+  if (dummy.length > 1){
     $('.show').removeClass('show');
     $('#content').addClass('filtered');
     $("li:containsNC('" + dummy + "')" ).addClass('show');

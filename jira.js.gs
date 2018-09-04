@@ -118,7 +118,8 @@ function getStories() {
   while (data.startAt + data.maxResults < data.total) {
     Logger.log("Making request for %s entries", C_MAX_RESULTS);  
     
-    data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20issuetype%20in%20(story,task,bug)%20order%20by%20rank%20asc%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
+    //import only issues of the type story,task,bug, and exclude those with status=done
+    data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20issuetype%20in%20(story,task,bug)%20and%20status!=Done%20order%20by%20rank%20asc%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     
     allData.issues = allData.issues.concat(data.issues);
     startAt = data.startAt + data.maxResults;

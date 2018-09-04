@@ -45,6 +45,17 @@ function doGet(e) {
 
 
 // ******************************************************************************************************
+// Function to return the HTML of the roadmap
+// ******************************************************************************************************
+function returnRoadmapHtml(e) {
+  var html = HtmlService
+        .createTemplateFromFile('display') // uses templated html
+        .evaluate()
+        .getContent();
+      return html;
+}
+
+// ******************************************************************************************************
 // Function to print out the content of an HTML file into another (used to load the CSS and JS)
 // ******************************************************************************************************
 function getContent(filename) {
@@ -235,12 +246,12 @@ function printColumnsWithItems(){
 		         htmlOngoing +
 		       '</div>' +
              '</div>';
-  outHTML += '<div class="column" id="Done-wrapper" style="display: none;">' +
-		       '<h2>Done</h2>' +
-		       '<div class="item-container" id="Done">' +
-		         htmlDone +
-		       '</div>' +
-             '</div>';
+//  outHTML += '<div class="column" id="Done-wrapper" style="display: none;">' +
+//		       '<h2>Done</h2>' +
+//		       '<div class="item-container" id="Done">' +
+//		         htmlDone +
+//		       '</div>' +
+//             '</div>';
   return outHTML;
 }
 

@@ -4,6 +4,7 @@
     <base target="_top">
     <script src="//code.jquery.com/jquery-3.3.1.min.js"></script>
     <?!= getContent('sortable'); ?>
+    <?!= getContent('TouchPunch'); ?>
     <?!= getContent('submit.js'); ?>
     <?!= getContent('jquery.markitup.js'); ?>
     <?!= getContent('submit.css'); ?>
@@ -47,8 +48,9 @@
 			</div>
             
 			<div class="fieldWrapper">
-              <div id="submitIssue" class="divButton" onclick="var outV = prepareStory(); var rText = google.script.run.JIRAsubmit(outV); clearForm();">Create issue</div> 
-              <div id="JIRAsubmit"  class="divButton" onclick="var outV = prepareTask();  var rText = google.script.run.JIRAsubmit(outV); clearForm();">Create Task</div>
+              <div id="submitStory" class="divButton" onclick="var outV = prepareStory(); var rText = google.script.run.JIRAsubmit(outV); clearForm();">Create Story</div> 
+              <div id="submitTask"  class="divButton" onclick="var outV = prepareTask();  var rText = google.script.run.JIRAsubmit(outV); clearForm();">Create Task</div>
+              <div id="submitBug"  class="divButton" onclick="var outV = prepareBug();  var rText = google.script.run.JIRAsubmit(outV); clearForm();">Create Bug</div>
             </div>
             
             <div class="fieldWrapper">
