@@ -2,6 +2,7 @@ var sheetID = "19LhOLxFuOVHx2bE5BrZQVdUDK5Re3A0T4U6Fe6c0KO8"; //needed as you ca
 var favicon_url = 'https://icons.iconarchive.com/icons/iconsmind/outline/32/Quill-3-icon.png';
 var def_sheetName = 'SM';
 
+
 // ******************************************************************************************************
 // Function to create menus when you open the sheet
 // ******************************************************************************************************
@@ -62,32 +63,34 @@ function printVal(key) {
 // Function to create a new item in JIRA
 // ******************************************************************************************************
 function JIRAsubmit(data) {
-
-  var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/api/2/issue/";
-  var authVal = PropertiesService.getUserProperties().getProperty("digest");  
-  var options = { 
-              "Accept":"application/json", 
-              "contentType":"application/json", 
-              "method": "POST",
-              "payload": data,
-              "headers": {"Authorization": authVal}           
-             };
+  if (userIsEditor()){
+    var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/api/2/issue/";
+    var authVal = PropertiesService.getUserProperties().getProperty("digest");  
+    var options = { 
+                "Accept":"application/json", 
+                "contentType":"application/json", 
+                "method": "POST",
+                "payload": data,
+                "headers": {"Authorization": authVal}           
+               };
   
   
-  var resp = UrlFetchApp.fetch(url,options);
+    var resp = UrlFetchApp.fetch(url,options);
   
-  //if it all goes well the response should be 201 - the JIRA documentation is incorrect. See https://jira.atlassian.com/browse/JRASERVER-39339
-  if (resp.getResponseCode() != 201) {
-    Logger.log("Error retrieving data for url " + url + ":" + resp.getContentText());
-  }  
-  else {
-    var STRINGresp = resp.getContentText();
-    Logger.log('Item has been created');
-    Logger.log(STRINGresp);
-    var respJSON = JSON.parse(STRINGresp);
-    Browser.msgBox('Item ' + respJSON.self + ' has been created.'); 
-  }  
-  
+    //if it all goes well the response should be 201 - the JIRA documentation is incorrect. See https://jira.atlassian.com/browse/JRASERVER-39339
+    if (resp.getResponseCode() != 201) {
+      Logger.log("Error retrieving data for url " + url + ":" + resp.getContentText());
+    }  
+    else {
+      var STRINGresp = resp.getContentText();
+      Logger.log('Item has been created');
+      Logger.log(STRINGresp);
+      var respJSON = JSON.parse(STRINGresp);
+      Browser.msgBox('Item ' + respJSON.self + ' has been created.'); 
+    }  
+  } else {
+    Browser.msgBox('You do not have the permission to create a new item via this interface'); 
+  }
 }
 
 
@@ -124,6 +127,27 @@ function convertSheet2JsonText(sheet) {
     jsonArray.push(json);
   }
   return jsonArray;
+}
+
+
+function userIsEditor(){
+  var userEmail = Session.getActiveUser().getEmail();
+  var editorEmails = PropertiesService.getScriptProperties().getProperty("editorEmails");
+  if ( editorEmails.indexOf(userEmail) != -1 ) {
+    return true;
+  } else {  
+    var file = DriveApp.getFileById(sheetID);
+    var editors = file.getEditors();
+    var isEditor = false;
+    for (var ed=0; ed<editors.length; ed++) {
+      if (editors[ed].getEmail() == userEmail ){
+        isEditor = true
+      }
+    }
+    if (file.getOwner().getEmail() == userEmail ){
+      isEditor = true
+    }
+  }
 }
 
 // ******************************************************************************************************
@@ -187,7 +211,7 @@ function printColumnsWithItems(){
   }
   
   var outHTML = '';
-  outHTML += '<div class="column" id="Parked-wrapper">' +
+  outHTML += '<div class="column" id="Parked-wrapper" style="display: none;">' +
 		       '<h2>Parked</h2>' +
 		       '<div class="item-container sortable-area" id="Parked">' +
 		         htmlParked +
@@ -227,7 +251,8 @@ function createItemHMTL(id, type, displayText, epic, column ){
    var itemHTML = '<li id="' + id + '" data-column="' + column + '">' +
                      '<span class="drag-handle">☰</span>' +
                      '<div class="type-' + type + '">' + displayText + '</div>' +
-                     '<span class="epic" class="epic-'+ epic +'"></span>' +
+                     '<span class="epic epic-'+ epic +'"></span>' +
+                     '<a class="link-item" href="https://jobladder.atlassian.net/browse/' + id + '" target="_blank"><i class="material-icons">launch</i></a>' +  
                    '</li>'; 
    return itemHTML;
 }

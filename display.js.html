@@ -63,4 +63,26 @@ function refreshPage(){
   });
 }
 
+
+//non case sensitive selector from https://css-tricks.com/snippets/jquery/make-jquery-contains-case-insensitive/
+$.extend($.expr[":"], {
+  "containsNC": function(elem, i, match, array) {
+    return (elem.textContent || elem.innerText || "").toLowerCase().indexOf((match[3] || "").toLowerCase()) >= 0;
+  }
+});
+
+ 
+function filterItems() {
+  var dummy = $('#filter').val();
+  if (dummy.length > 2){
+    $('.show').removeClass('show');
+    $('#content').addClass('filtered');
+    $("li:containsNC('" + dummy + "')" ).addClass('show');
+  } else {
+    $('.show').removeClass('show');
+    $('.filtered').removeClass('filtered');
+  }
+  console.log(dummy);
+}
+
 </script>

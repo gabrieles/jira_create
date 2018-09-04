@@ -4,6 +4,7 @@
     <base target="_top">
     <script src="//code.jquery.com/jquery-3.3.1.min.js"></script>
     <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <?!= getContent('sortable'); ?>
     <?!= getContent('display.js'); ?>
     <?!= getContent('display.css'); ?>  
@@ -17,6 +18,7 @@
            <a id="toggle-done" class="button toggle" href="javascript:toggleButton('Done-wrapper')">Toggle Done</a>
            <a id="toggle-parked" class="button toggle" href="javascript:toggleButton('Parked-wrapper')">Toggle Parked</a>
            <a id="toggle-parked" class="button toggle" href="javascript:refreshPage();">Refresh Data</a>
+           <span id="filter-wrapper"><span id="filter-label" class="button">Filter by:</span><input id="filter" type="text" onchange="filterItems();"/></span>
          </div>
          <div id="content">
            <div id="loader-wrapper"><div class="loader" style="display:none">Loading...</div></div>

@@ -32,20 +32,32 @@ var default_sheetName = 'SM';
 
 
 function jiraConfigure() {
+  //only the owner can access this
+  var userEmail = Session.getActiveUser().getEmail();
+  var file = DriveApp.getFileById(sheetID);
+  if (file.getOwner().getEmail() == userEmail ){
   
-  //var host = Browser.inputBox("Enter the host name of your on demand instance e.g. toothCamp.atlassian.net", "Host", Browser.Buttons.OK);
-  PropertiesService.getUserProperties().setProperty("host", host);
+    //var host = Browser.inputBox("Enter the host name of your on demand instance e.g. toothCamp.atlassian.net", "Host", Browser.Buttons.OK);
+    PropertiesService.getUserProperties().setProperty("host", host);
   
-  var userID = Browser.inputBox("Enter your Jira UserID/email", "yourname@email.com", Browser.Buttons.OK_CANCEL);
-  var userPassword = Browser.inputBox("Enter your Jira Password (Note: This will be base64 Encoded and saved as a property on the spreadsheet)", "Password", Browser.Buttons.OK_CANCEL);
-  var userAndPassword = userID + ':' + userPassword;
-  var x = Utilities.base64Encode(userAndPassword);
-  PropertiesService.getUserProperties().setProperty("digest", "Basic " + x);
+    var userID = Browser.inputBox("Enter your Jira UserID/email", "yourname@email.com", Browser.Buttons.OK_CANCEL);
+    var userPassword = Browser.inputBox("Enter your Jira Password (Note: This will be base64 Encoded and saved as a property on the spreadsheet)", "Password", Browser.Buttons.OK_CANCEL);
+    var userAndPassword = userID + ':' + userPassword;
+    var x = Utilities.base64Encode(userAndPassword);
+    PropertiesService.getUserProperties().setProperty("digest", "Basic " + x);
   
-  var projectKey = Browser.inputBox("Enter your Jira Board Key (it will be an acronym, like CJ or SM)", "ProjectKey", Browser.Buttons.OK_CANCEL);
-  PropertiesService.getUserProperties().setProperty("projectKey", projectKey);
+    var projectKey = Browser.inputBox("Enter your Jira Board Key (it will be an acronym, like CJ or SM)", "ProjectKey", Browser.Buttons.OK_CANCEL);
+    PropertiesService.getUserProperties().setProperty("projectKey", projectKey);
   
-  Browser.msgBox("Jira configuration saved successfully.");
+    var editorEmails = Browser.inputBox("Enter a comma-separated list of emails of the editor", "Email(s)", Browser.Buttons.OK_CANCEL);
+    PropertiesService.getUserProperties().setProperty("editorEmails", editorEmails);
+    
+    PropertiesService.getScriptProperties().setProperty("editorEmails", userEmail);
+  
+    Browser.msgBox("Jira configuration saved successfully.");
+  } else {
+    Browser.msgBox("Only the file owner can complete this action");
+  }
 }  
 
 
@@ -105,10 +117,7 @@ function getStories() {
   
   while (data.startAt + data.maxResults < data.total) {
     Logger.log("Making request for %s entries", C_MAX_RESULTS);  
-    //data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20type%20in%20("+ PropertiesService.getUserProperties().getProperty("issueTypes") + ")%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
-    //data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20type%20in%20(story,task,bug)%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     
-    //removed filter on issue type
     data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20issuetype%20in%20(story,task,bug)%20order%20by%20rank%20asc%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     
     allData.issues = allData.issues.concat(data.issues);
@@ -127,10 +136,7 @@ function printOptionsForEpic() {
   
   while (data.startAt + data.maxResults < data.total) {
     Logger.log("Making request for %s epics", C_MAX_RESULTS);  
-    //data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20type%20in%20("+ PropertiesService.getUserProperties().getProperty("issueTypes") + ")%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
-    //data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20type%20in%20(story,task,bug)%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     
-    //removed filter on issue type
     data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("projectKey") + "%20and%20type%20in%20(epic)%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     
     allData.issues = allData.issues.concat(data.issues);
@@ -403,46 +409,54 @@ function getFieldName(heading,fields) {
 
 // see https://docs.atlassian.com/jira-software/REST/7.3.1/#agile/1.0/issue-rankIssues for details
 function updateRank(IssueMovedID,BeforeIssueID) {
-  var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/agile/1.0/issue/rank";
-  var digestfull = PropertiesService.getUserProperties().getProperty("digest");
-  var payload = '{"issues":["' + IssueMovedID + '"],"rankBeforeIssue":"' + BeforeIssueID + '"}';
-  var headers = { "method":"PUT",
-                  "contentType":"application/json",
-                  "headers":{"Authorization": digestfull},
-                  "payload": payload,
-                  "muteHttpExceptions":true
-                 };
+  if (userIsEditor()){
+    var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/agile/1.0/issue/rank";
+    var digestfull = PropertiesService.getUserProperties().getProperty("digest");
+    var payload = '{"issues":["' + IssueMovedID + '"],"rankBeforeIssue":"' + BeforeIssueID + '"}';
+    var headers = { "method":"PUT",
+                    "contentType":"application/json",
+                    "headers":{"Authorization": digestfull},
+                    "payload": payload,
+                    "muteHttpExceptions":true
+                   };
   
-  var resp = UrlFetchApp.fetch(url,headers);
-  if (resp.getResponseCode() != 204) {
-    Logger.log("Error " + resp.getResponseCode() + " updating rank for " + IssueMovedID + " to be placed before: " + BeforeIssueID + " Response Text: " + resp.getContentText());
-    return "";
+    var resp = UrlFetchApp.fetch(url,headers);
+    if (resp.getResponseCode() != 204) {
+      Logger.log("Error " + resp.getResponseCode() + " updating rank for " + IssueMovedID + " to be placed before: " + BeforeIssueID + " Response Text: " + resp.getContentText());
+      return "";
+    } else {
+      Logger.log("Success: moved item " + IssueMovedID + " above item " + BeforeIssueID);
+    }    
   } else {
-    Logger.log("Success: moved item " + IssueMovedID + " above item " + BeforeIssueID);
-  }    
+    Browser.msgBox('You do not have the permission to update the ranking');
+  }
 }  
 
 
 function editJiraLabel(IssueID,addLabelValue,removeLabelValue) {
-  var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/api/2/issue/" + IssueID;
-  var digestfull = PropertiesService.getUserProperties().getProperty("digest");
-  if (removeLabelValue) {
-    var payload = '{ "update": { "labels": [ {"add" : "' + addLabelValue + '"},{"remove" : "' + removeLabelValue + '"}  ] } }';
-  } else {
-    var payload = '{ "update": { "labels": [ {"add" : "' + addLabelValue + '"} ] } }';
-  }
-  var headers = { "method":"PUT",
-                  "contentType":"application/json",
-                  "headers":{"Authorization": digestfull},
-                  "payload": payload,
-                  "muteHttpExceptions":true
-                 };
+  if (userIsEditor()){
+    var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/api/2/issue/" + IssueID;
+    var digestfull = PropertiesService.getUserProperties().getProperty("digest");
+    if (removeLabelValue) {
+      var payload = '{ "update": { "labels": [ {"add" : "' + addLabelValue + '"},{"remove" : "' + removeLabelValue + '"}  ] } }';
+    } else {
+      var payload = '{ "update": { "labels": [ {"add" : "' + addLabelValue + '"} ] } }';
+    }
+    var headers = { "method":"PUT",
+                    "contentType":"application/json",
+                    "headers":{"Authorization": digestfull},
+                    "payload": payload,
+                    "muteHttpExceptions":true
+                   };
   
-  var resp = UrlFetchApp.fetch(url,headers);
-  if (resp.getResponseCode() != 204) {
-    Logger.log("Error " + resp.getResponseCode() + " updating label for " + IssueID + " Response Text: " + resp.getContentText());
-    return "";
+    var resp = UrlFetchApp.fetch(url,headers);
+    if (resp.getResponseCode() != 204) {
+      Logger.log("Error " + resp.getResponseCode() + " updating label for " + IssueID + " Response Text: " + resp.getContentText());
+      return "";
+    } else {
+      Logger.log("Success: updated label for " + IssueID + ". Added " + addLabelValue + " and removed " + removeLabelValue);
+    }    
   } else {
-    Logger.log("Success: updated label for " + IssueID + ". Added " + addLabelValue + " and removed " + removeLabelValue);
-  }    
+    Browser.msgBox('You do not have the permission to move the items');
+  }
 } 
