@@ -223,9 +223,9 @@ function printColumnsWithItems(){
     for (var i=1; i<lastRow; i++) {  
       var id = allValues[i][0];
       var type = allValues[i][1];
-      var displayText = allValues[i][2];
-      var itemLabel = allValues[i][3];
-      var sprint = allValues[i][4];
+      var displayText = cleanOutput(allValues[i][2]);
+      var itemLabel = cleanOutput(allValues[i][3]);
+      var sprint = cleanOutput(allValues[i][4]);
       var sprintStartDate = allValues[i][5];
       var status = allValues[i][6];
       var epic = allValues[i][7];
@@ -285,3 +285,18 @@ function createItemHMTL(id, type, displayText, epic, column ){
    return itemHTML;
 }
 
+
+// ******************************************************************************************************
+// Clean the use input into something that we can embed in HTML without breaking it - from https://stackoverflow.com/questions/1787322/htmlspecialchars-equivalent-in-javascript/4835406#4835406
+// ******************************************************************************************************
+function cleanOutput(text) {
+  var map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+
+  return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}

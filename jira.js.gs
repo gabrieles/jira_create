@@ -313,22 +313,23 @@ function cleanData(sheetName) {
   }
 
   //check if a column has dates in the JIRA format, and if so trim the values  
-  var regexDate = /20\d{2}(-|\/)((0[1-9])|(1[0-2]))(-|\/)((0[1-9])|([1-2][0-9])|(3[0-1]))(T|\s)(([0-1][0-9])|(2[0-3])):([0-5][0-9]):([0-5][0-9]).([0-9][0-9][0-9]\+[0-9][0-9][0-9][0-9])/
+  //var regexDate = /20\d{2}(-|\/)((0[1-9])|(1[0-2]))(-|\/)((0[1-9])|([1-2][0-9])|(3[0-1]))(T|\s)(([0-1][0-9])|(2[0-3])):([0-5][0-9]):([0-5][0-9]).([0-9][0-9][0-9]\+[0-9][0-9][0-9][0-9])/
+  var regexDate = /20\d{2}(-|\/)((0[1-9])|(1[0-2]))(-|\/)((0[1-9])|([1-2][0-9])|(3[0-1]))/
   var testValues = ss.getRange(2, 1, 2, ss.getLastColumn()).getValues()[0];
   var tLength = testValues.length+1;
   for (var i=1; i<tLength; i++) {
 
-    dummyVal = testValues[i-1];
-    if (dummyVal.length == 28) {
-      if (dummyVal.match(regexDate)) {
-        var dateRange = ss.getRange(2,i,last,i);
-        var dateValues = dateRange.getValues();
-        for (var h=0; h<last; h++) {
-          dateValues[h][0] = dateValues[h][0].substring(0,10);
-        }
-        dateRange.setValues(dateValues);       
+    dummyVal = testValues[i-1].slice(0, 10);
+    
+    if (dummyVal.match(regexDate)) {
+      var dateRange = ss.getRange(2,i,last,i);
+      var dateValues = dateRange.getValues();
+      for (var h=0; h<last; h++) {
+        dateValues[h][0] = dateValues[h][0].substring(0,10);
       }
+      dateRange.setValues(dateValues);       
     }
+    
   }  
   
 }
