@@ -1,6 +1,5 @@
 var sheetID = "19LhOLxFuOVHx2bE5BrZQVdUDK5Re3A0T4U6Fe6c0KO8"; //needed as you cannot use getActiveSheet() while the sheet is not in use (as in a standalone application like this one)
 var favicon_url = 'https://icons.iconarchive.com/icons/iconsmind/outline/32/Quill-3-icon.png';
-var def_sheetName = 'SM';
 
 
 // ******************************************************************************************************
@@ -105,40 +104,6 @@ function JIRAsubmit(data) {
 }
 
 
-// ******************************************************************************************************
-// Get the content of a google sheet and convert it into a json - from https://gist.github.com/daichan4649/8877801
-// ******************************************************************************************************
-function convertSheet2JsonText(sheet) {
-  // first line(title)
-  var colStartIndex = 1;
-  var rowNum = 1;
-  var firstRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
-  var firstRowValues = firstRange.getValues();
-  var titleColumns = firstRowValues[0];
-
-  // after the second line(data)
-  var lastRow = sheet.getLastRow();
-  var rowValues = [];
-  for(var rowIndex=2; rowIndex<=lastRow; rowIndex++) {
-    var colStartIndex = 1;
-    var rowNum = 1;
-    var range = sheet.getRange(rowIndex, colStartIndex, rowNum, sheet.getLastColumn());
-    var values = range.getValues();
-    rowValues.push(values[0]);
-  }
-
-  // create json
-  var jsonArray = [];
-  for(var i=0; i<rowValues.length; i++) {
-    var line = rowValues[i];
-    var json = new Object();
-    for(var j=0; j<titleColumns.length; j++) {
-      json[titleColumns[j]] = line[j];
-    }
-    jsonArray.push(json);
-  }
-  return jsonArray;
-}
 
 
 function userIsEditor(){
@@ -150,7 +115,8 @@ function userIsEditor(){
     var file = DriveApp.getFileById(sheetID);
     var editors = file.getEditors();
     var isEditor = false;
-    for (var ed=0; ed<editors.length; ed++) {
+    var eLength = editors.length
+    for (var ed=0; ed<eLength; ed++) {
       if (editors[ed].getEmail() == userEmail ){
         isEditor = true
       }
@@ -161,97 +127,148 @@ function userIsEditor(){
   }
 }
 
-// ******************************************************************************************************
-// Wrapper for the convertSheet2JsonText - pass the sheetName to get the JSON array out
-// ******************************************************************************************************
-function sheet2Json(sheetName) {
-  var ss = SpreadsheetApp.openById(sheetID);
-  var sheets = ss.getSheets();
-  var sh = ss.getSheetByName(sheetName);
-  return convertSheet2JsonText(sh);
-}
-
 
 // ******************************************************************************************************
 // Generate the HTML for the display page
 // ******************************************************************************************************
 function printColumnsWithItems(){
   
-  var itemJSON = sheet2Json(def_sheetName);
+  Logger.log('job started');
   
-  var htmlParked = '';
-  var htmlIdeas = '';
-  var htmlPlanned = '';
-  var htmlOngoing = '';
-  var htmlDone = '';
+  var ss = SpreadsheetApp.openById(sheetID);
+  var sheetName = PropertiesService.getUserProperties().getProperty("projectKey");
+  var sheet = ss.getSheetByName(sheetName);
+    
+  //get all data
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn()
+  var range = sheet.getRange(1, 1, lastRow, lastCol);
+  var allValues = range.getValues();
   
-  var itemHasSprint = false;
-  var itemIsDone = false;
+  var id_col = -1;
+  var type_col = -1;
+  var displayText_col = -1;
+  var itemLabel_col = -1;
+  var sprint_col = -1;
+  var sprintStartDate_col = -1;
+  var status_col = -1;
+  var epic_col = -1;
+  var id_col_txt = '<li>Key</li>';
+  var type_col_txt = '<li>Issuetype.name</li>';
+  var displayText_col_txt = '<li>Summary</li>';
+  var itemLabel_col_txt = '<li>Labels</li>';
+  var sprint_col_txt = '<li>Sprint.name</li>';
+  var sprintStartDate_col_txt = '<li>Sprint.startDate</li>';
+  var status_col_txt = '<li>Status.name</li>';
+  var epic_col_txt = '<li>customfield_10008</li>';
   
-  
-  for (var i=0; i<itemJSON.length; i++) {
-    var jItem = itemJSON[i];  
-    var id = jItem["Key"]
-    var type = jItem["Issuetype.name"];
-    var displayText = jItem["Summary"];
-    var epic = jItem["customfield_10008"];
-    var sprint = jItem["Sprint.name"];
-    var status = jItem["Status.name"];
-    var itemLabel = jItem["Labels"];
-
-    if (type != "Epic") {
-      if (sprint){  
-        if (status == "Done") {
-            htmlDone += createItemHMTL(id, type, displayText, epic, "Done" )
-          } else {
-            htmlOngoing += createItemHMTL(id, type, displayText, epic, "Ongoing" )
-          }
-      } else {
-        switch(itemLabel){
-          case "Parked":
-            htmlParked += createItemHMTL(id, type, displayText, epic, "Parked" )
-            break;
-          case "Planned":
-            htmlPlanned += createItemHMTL(id, type, displayText, epic, "Planned" )
-            break;
-          default:
-            htmlIdeas += createItemHMTL(id, type, displayText, epic, "Idea" )
-        }  
-      }
+  for (var m=0; m<lastCol; m++){
+    var dummy = allValues[0][m].toLowerCase();
+    switch(dummy){
+      case "key":   
+        id_col = m;
+        id_col_txt = '';
+        break;
+      case "issuetype.name":   
+        type_col = m;
+        type_col_txt = '';
+        break;
+      case "summary":   
+        displayText_col = m;
+        displayText_col_txt = '';
+        break;  
+      case "labels":   
+        itemLabel_col = m;
+        itemLabel_col_txt = '';
+        break;  
+      case "sprint.name":   
+        sprint_col = m;
+        sprint_col_txt = '';
+        break;  
+      case "sprint.startDate":   
+        sprintStartDate_col = m;
+        sprintStartDate_col_txt = '';
+        break;  
+      case "status.name":   
+        status_col = m;
+        status_col_txt = '';
+        break;  
+      case "customfield_10008":   
+        epic_col = m;
+        epic_col_txt = '';
+        break;  
+      default:   
+        //do nothing				
     }
   }
   
-  var outHTML = '';
-  outHTML += '<div class="column" id="Parked-wrapper" style="display: none;">' +
-		       '<h2>Parked</h2>' +
-		       '<div class="item-container sortable-area" id="Parked">' +
-		         htmlParked +
-		       '</div>' +
-             '</div>';
-  outHTML += '<div class="column" id="Idea-wrapper">' +
-		       '<h2>Ideas</h2>' +
-		       '<div class="item-container sortable-area" id="Idea">' +
-		         htmlIdeas +
-		       '</div>' +
-             '</div>';  
-  outHTML += '<div class="column" id="Planned-wrapper">' +
-		       '<h2>Planned</h2>' +
-		       '<div class="item-container sortable-area" id="Planned">' +
-		         htmlPlanned +
-		       '</div>' +
-             '</div>';
-  outHTML += '<div class="column" id="Ongoing-wrapper">' +
-		       '<h2>Ongoing</h2>' +
-		       '<div class="item-container" id="Ongoing">' +
-		         htmlOngoing +
-		       '</div>' +
-             '</div>';
-//  outHTML += '<div class="column" id="Done-wrapper" style="display: none;">' +
-//		       '<h2>Done</h2>' +
-//		       '<div class="item-container" id="Done">' +
-//		         htmlDone +
-//		       '</div>' +
-//             '</div>';
+  var missingColumnsHTML = id_col_txt + type_col_txt + displayText_col_txt + itemLabel_col_txt + sprint_col_txt + sprintStartDate_col_txt + status_col_txt + epic_col_txt;
+  if ( missingColumnsHTML.length == 0 ) {
+    var outHTML = '<div class="warning">' +
+                    '<h2>The information in your sheet is incomplete. Please add these columns:</h2>' +
+                    '<ul>' +
+                      missingColumnsHTML +
+                    '</ul>' +
+                  '</div>';
+  } else {
+    var htmlParked = '';
+    var htmlIdeas = '';
+    var htmlPlanned = '';
+    var htmlOngoing = '';
+    var htmlDone = '';
+  
+    var itemHasSprint = false;
+    var itemIsDone = false;
+    
+    for (var i=1; i<lastRow; i++) {  
+      var id = allValues[i][0];
+      var type = allValues[i][1];
+      var displayText = allValues[i][2];
+      var itemLabel = allValues[i][3];
+      var sprint = allValues[i][4];
+      var sprintStartDate = allValues[i][5];
+      var status = allValues[i][6];
+      var epic = allValues[i][7];
+    
+      if (sprint && sprintStartDate != "<null>"){  
+        htmlOngoing += createItemHMTL(id, type, displayText, epic, "Ongoing" )
+      } else if (itemLabel.indexOf("Parked") != -1) {
+        htmlParked += createItemHMTL(id, type, displayText, epic, "Parked" )
+      } else if (itemLabel.indexOf("Planned") != -1) {
+        htmlPlanned += createItemHMTL(id, type, displayText, epic, "Planned" )
+      } else {
+        htmlIdeas += createItemHMTL(id, type, displayText, epic, "Idea" ) 
+      }
+    }
+  
+    Logger.log('html items completed');
+  
+    var outHTML = '<div class="column" id="Parked-wrapper" style="display: none;">' +
+  	 	            '<h2>Parked</h2>' +
+		            '<div class="item-container sortable-area" id="Parked">' +
+		              htmlParked +
+		            '</div>' +
+                  '</div>' +
+                  '<div class="column" id="Idea-wrapper">' +
+		            '<h2>Ideas</h2>' +
+		            '<div class="item-container sortable-area" id="Idea">' +
+		              htmlIdeas +
+		            '</div>' +
+                  '</div>' +  
+                  '<div class="column" id="Planned-wrapper">' +
+		            '<h2>Planned</h2>' +
+		            '<div class="item-container sortable-area" id="Planned">' +
+		              htmlPlanned +
+		            '</div>' +
+                  '</div>' +
+                  '<div class="column" id="Ongoing-wrapper">' +
+		            '<h2>Ongoing</h2>' +
+		            '<div class="item-container" id="Ongoing">' +
+		              htmlOngoing +
+		            '</div>' +
+                  '</div>';
+  }  
+  Logger.log('outHTML completed');
   return outHTML;
 }
 
@@ -267,3 +284,4 @@ function createItemHMTL(id, type, displayText, epic, column ){
                    '</li>'; 
    return itemHTML;
 }
+

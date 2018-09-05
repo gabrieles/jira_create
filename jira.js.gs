@@ -27,8 +27,7 @@
 
 
 var C_MAX_RESULTS = 1000;
-var default_sheetName = 'SM';
-
+var host = "jobladder.atlassian.net"
 
 
 function jiraConfigure() {
@@ -38,6 +37,7 @@ function jiraConfigure() {
   if (file.getOwner().getEmail() == userEmail ){
   
     //var host = Browser.inputBox("Enter the host name of your on demand instance e.g. toothCamp.atlassian.net", "Host", Browser.Buttons.OK);
+    //var host = host.replace(/^https?\:\/\//i, "");
     PropertiesService.getUserProperties().setProperty("host", host);
   
     var userID = Browser.inputBox("Enter your Jira UserID/email", "yourname@email.com", Browser.Buttons.OK_CANCEL);
@@ -49,7 +49,7 @@ function jiraConfigure() {
     var projectKey = Browser.inputBox("Enter your Jira Board Key (it will be an acronym, like CJ or SM)", "ProjectKey", Browser.Buttons.OK_CANCEL);
     PropertiesService.getUserProperties().setProperty("projectKey", projectKey);
   
-    var editorEmails = Browser.inputBox("Enter a comma-separated list of emails of the editor", "Email(s)", Browser.Buttons.OK_CANCEL);
+    var editorEmails = Browser.inputBox("OPTIONAL: If you want to give permission to reorder items to anyone besides you, enter their comma-separated emails here", "Email(s)", Browser.Buttons.OK_CANCEL);
     PropertiesService.getUserProperties().setProperty("editorEmails", editorEmails);
     
     PropertiesService.getScriptProperties().setProperty("editorEmails", userEmail);
@@ -64,7 +64,8 @@ function jiraConfigure() {
 
 function removeTriggers() {
   var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i++) {
+  var tLength = triggers.length;
+  for (var i=0; i<tLength; i++) {
     ScriptApp.deleteTrigger(triggers[i]);
   }
   
@@ -76,7 +77,8 @@ function removeTriggers() {
 
 function scheduleRefresh() {
   var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i++) {
+  var tLength = triggers.length;
+  for (var i=0; i<tLength; i++) {
     ScriptApp.deleteTrigger(triggers[i]);
   }
   
@@ -145,7 +147,8 @@ function printOptionsForEpic() {
   }  
   
   var html = '';
-  for (i=0;i<data.issues.length;i++) {
+  var diLength = data.issues.length;
+  for (var i=0; i<diLength; i++) {
     html = html + '<option value="'+ data.issues[i].key + '">' + data.issues[i].fields.customfield_10009 + '</options>';
   }  
   return html;
@@ -205,7 +208,7 @@ function sendMetaToLogger(){
 function jiraPull(sheetName) {
   
   //set default sheetname if missing
-  sheetName = typeof sheetName !== 'undefined' ? sheetName : default_sheetName;
+  sheetName = typeof sheetName !== 'undefined' ? sheetName : PropertiesService.getUserProperties().getProperty("projectKey");
   
   //get the prefix and search keyword from the sheet name  
   if (sheetName.indexOf("-") >0) {
@@ -249,7 +252,8 @@ function jiraPull(sheetName) {
   var extractArray = new Array(headings.length);
   
   //check if there is a "." in a headings name
-  for (ii=0;ii<headings.length;ii++) {
+  var hLength = headings.length;
+  for (var ii=0; ii<hLength; ii++) {
     if (headings[ii].indexOf(".")) {
        var dummy = headings[ii].split(".");
        headings[ii] = dummy[0];
@@ -260,7 +264,8 @@ function jiraPull(sheetName) {
   }
   
   var y = new Array();
-  for (i=0;i<data.issues.length;i++) {
+  var diLength = data.issues.length;
+  for (var i=0; i<diLength; i++) {
     var d=data.issues[i];
     y.push(getStory(d,headings,allFields));
   }  
@@ -286,8 +291,9 @@ function cleanData(sheetName) {
   var headings = ss.getRange(1, 1, 1, ss.getLastColumn()).getValues()[0];
     
   //clean up the output of columns with a "."
-  for (var j=1;j<headings.length+1;j++) {
-    var headingVal = headings[j-1];
+  var hLength = headings.length +1;
+  for (var j=1; j<hLength; j++) {
+    var headingVal = headings[j-1]; 
     if (headingVal.indexOf(".") != -1 ) {
       Logger.log(headingVal);
       var range = ss.getRange(2,j,last,j);
@@ -309,8 +315,8 @@ function cleanData(sheetName) {
   //check if a column has dates in the JIRA format, and if so trim the values  
   var regexDate = /20\d{2}(-|\/)((0[1-9])|(1[0-2]))(-|\/)((0[1-9])|([1-2][0-9])|(3[0-1]))(T|\s)(([0-1][0-9])|(2[0-3])):([0-5][0-9]):([0-5][0-9]).([0-9][0-9][0-9]\+[0-9][0-9][0-9][0-9])/
   var testValues = ss.getRange(2, 1, 2, ss.getLastColumn()).getValues()[0];
-  
-  for (var i=1;i<testValues.length+1;i++) {
+  var tLength = testValues.length+1;
+  for (var i=1; i<tLength; i++) {
 
     dummyVal = testValues[i-1];
     if (dummyVal.length == 28) {
@@ -335,8 +341,8 @@ function getAllFields() {
   var allFields = new Object();
   allFields.ids = new Array();
   allFields.names = new Array();
-  
-  for (var i = 0; i < theFields.length; i++) {
+  var fLength = theFields.length;
+  for (var i=0; i<fLength; i++) {
       allFields.ids.push(theFields[i].id);
       allFields.names.push(theFields[i].name.toLowerCase());
   }  
@@ -350,7 +356,8 @@ function getAllFields() {
 function getStory(data,headings,fields) {
   
   var story = [];
-  for (var i = 0;i < headings.length;i++) {
+  var hLength = headings.length;
+  for (var i=0; i<hLength; i++) {
     if (headings[i] !== "") {
       story.push(getDataForHeading(data,headings[i].toLowerCase(),fields));
     }  

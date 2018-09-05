@@ -62,7 +62,7 @@ function refreshApp(newHtml) {
       
 async function refreshPage(){
   $('.loader').show();
-  await google.script.run.jiraPull('SM');
+  await google.script.run.jiraPull();
   await google.script.run.withSuccessHandler(refreshApp).returnRoadmapHtml();
   
 }
