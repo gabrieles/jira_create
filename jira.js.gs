@@ -1,4 +1,4 @@
-// ---------------------------------------------------------------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------------------------------------
 // The MIT License (MIT)
 // 
 // Copyright (c) 2014 Iain Brown - http://www.littlebluemonkey.com/blog/automatically-import-jira-backlog-into-google-spreadsheet
@@ -23,83 +23,94 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-//code extensively modified by Gabriele Sani - gabrielesani @ gmail.com
-
-
-var C_MAX_RESULTS = 1000;
-var host = "jobladder.atlassian.net"
+//code extensively modified by https://github.com/gabrieles
 
 
 function jiraConfigure() {
   //only the owner can access this
   var userEmail = Session.getActiveUser().getEmail();
+  var sheetID = SpreadsheetApp.getActiveSpreadsheet().getId();
   var file = DriveApp.getFileById(sheetID);
   if (file.getOwner().getEmail() == userEmail ){
-  
-    //var host = Browser.inputBox("Enter the host name of your on demand instance e.g. toothCamp.atlassian.net", "Host", Browser.Buttons.OK);
-    //var host = host.replace(/^https?\:\/\//i, "");
-    PropertiesService.getUserProperties().setProperty("host", host);
-  
-    var userID = Browser.inputBox("Enter your Jira UserID/email", "yourname@email.com", Browser.Buttons.OK_CANCEL);
-    var userPassword = Browser.inputBox("Enter your Jira Password (Note: This will be base64 Encoded and saved as a property on the spreadsheet)", "Password", Browser.Buttons.OK_CANCEL);
-    var userAndPassword = userID + ':' + userPassword;
-    var x = Utilities.base64Encode(userAndPassword);
-    PropertiesService.getUserProperties().setProperty("digest", "Basic " + x);
-  
-    var projectKey = Browser.inputBox("Enter your Jira Board Key (it will be an acronym, like CJ or SM)", "ProjectKey", Browser.Buttons.OK_CANCEL);
-    PropertiesService.getUserProperties().setProperty("projectKey", projectKey);
-  
-    var editorEmails = Browser.inputBox("OPTIONAL: If you want to give permission to reorder items to anyone besides you, enter their comma-separated emails here", "Email(s)", Browser.Buttons.OK_CANCEL);
-    PropertiesService.getUserProperties().setProperty("editorEmails", editorEmails);
     
-    PropertiesService.getScriptProperties().setProperty("editorEmails", userEmail);
-  
-    Browser.msgBox("Jira configuration saved successfully.");
+    //store the sheetID automatically
+    PropertiesService.getScriptProperties().setProperty("sheetID", sheetID);
+    
+    var ui = SpreadsheetApp.getUi();
+    
+    var host = askToSetProperty(ui,"Enter the host name of your JIRA instance","Eg: jobladder.atlassian.net (Cancel to skip)", "host")
+    
+    var userID = askToSetProperty(ui,"Enter your Jira UserID/email","Eg: yourname@charityjob.co.uk (Cancel to skip)", "userID")
+    
+    var apiToken = askToSetProperty(ui,"Enter your Jira API Token","Get it at https://id.atlassian.com/manage/api-tokens (Cancel to skip)", "apiToken")
+    
+    if( userID && apiToken){
+      var userAndToken = userID + ':' + apiToken;
+      var x = Utilities.base64Encode(userAndToken);
+      PropertiesService.getUserProperties().setProperty("digest", "Basic " + x);
+    }
+    
+    var projectKey = askToSetProperty(ui,"Enter your Jira Board Key", "It will be something short like 'CJ' or 'Didi' (Cancel to skip)", "projectKey");
+    
+    var maxNumResults = askToSetProperty(ui,"Enter the max number of issues to retrieve", "1000 (Cancel to skip)", "maxNumResults");
+    
+    ui.alert("Jira configuration saved successfully.");
   } else {
-    Browser.msgBox("Only the file owner can complete this action");
+    ui.alert("Only the file owner can complete this action");
   }
 }  
 
 
+function askToSetProperty(ui,title,prompt,propName){
+  
+  var result = ui.prompt(title, prompt, ui.ButtonSet.OK_CANCEL);
 
-function removeTriggers() {
-  var triggers = ScriptApp.getProjectTriggers();
-  var tLength = triggers.length;
-  for (var i=0; i<tLength; i++) {
-    ScriptApp.deleteTrigger(triggers[i]);
+  // Process the user's response.
+  var button = result.getSelectedButton();
+  var text = result.getResponseText();
+  if (button == ui.Button.OK) {
+    // User clicked "OK".
+    if(propName == 'host' || propName == 'projectKey' || propName == 'editorEmails' ){
+      PropertiesService.getScriptProperties().setProperty(propName, text);
+    } else {
+      PropertiesService.getUserProperties().setProperty(propName, text);
+    }
+    return text;
+  } else if (button == ui.Button.CANCEL) {
+    // User clicked "Cancel".
+    //do nothing
+    return ;
+  } else if (button == ui.Button.CLOSE) {
+    // User clicked X in the title bar.
+    //do nothing
+    return ;
   }
-  
-  Browser.msgBox("Spreadsheet will no longer refresh automatically.");
-  
-}  
+}
 
 
 
-function scheduleRefresh() {
-  var triggers = ScriptApp.getProjectTriggers();
-  var tLength = triggers.length;
-  for (var i=0; i<tLength; i++) {
-    ScriptApp.deleteTrigger(triggers[i]);
-  }
-  
-  ScriptApp.newTrigger("jiraPull").timeBased().everyHours(4).create();
-  
-  Browser.msgBox("Spreadsheet will refresh automatically every 4 hours.");
-
-}  
-
-
-
-function jiraPullManual() {
+function jiraPullOnSheet() {
   var sheetName = SpreadsheetApp.getActiveSpreadsheet().getSheetName();
   jiraPull(sheetName);
-  Browser.msgBox("Jira backlog successfully imported");
+  var ui = SpreadsheetApp.getUi();
+  ui.alert("Jira backlog successfully imported");
 }  
 
 
 
-function getFields() {
-  return JSON.parse(getDataForAPI("field"));  
+
+
+function getAllFields() {
+  var theFields = JSON.parse(getDataForAPI("field")); 
+  var allFields = new Object();
+  allFields.ids = new Array();
+  allFields.names = new Array();
+  var fLength = theFields.length;
+  for (var i=0; i<fLength; i++) {
+      allFields.ids.push(theFields[i].id);
+      allFields.names.push(theFields[i].name.toLowerCase());
+  }  
+  return allFields;
 }  
 
 
@@ -108,7 +119,7 @@ function getStories() {
   var data = {startAt:0,maxResults:0,total:1};
   var startAt = 0;
   
-  var searchKeyword = PropertiesService.getUserProperties().getProperty("searchKeyword");
+  var searchKeyword = printVal("searchKeyword");
   if (searchKeyword) {
     //make sure that this will not break the GET call
     var searchFilter = "%20and%20text%20~%20" + '%22' + encodeURI(searchKeyword) + '%22';;
@@ -118,10 +129,19 @@ function getStories() {
   Logger.log('searchFilter: ' + searchFilter);
   
   while (data.startAt + data.maxResults < data.total) {
+    var C_MAX_RESULTS = printVal("maxNumResults")
     Logger.log("Making request for %s entries", C_MAX_RESULTS);  
     
-    //import only issues of the type story,task,bug, and exclude those with status=done
-    data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("prefix") + searchFilter + "%20and%20issuetype%20in%20(story,task,bug)%20and%20status!=Done%20order%20by%20rank%20asc%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
+    //exclude epics, and items with status=done
+    var searchQuery = 'search?jql=project%20%3D%20' + printVal("projectKey") + 
+                                  searchFilter + '%20and%20' + 
+                                  'issuetype%20in%20(story,task,bug,hotfix,support)%20and%20' + 
+                                  'status!=Done%20' + 
+                                  'order%20by%20priority%20desc%20&' +
+                                  'maxResults=' + C_MAX_RESULTS + 
+                                  '&expand=versionedRepresentations&startAt=' + startAt;  
+    Logger.log(searchQuery);
+    data =  JSON.parse(getDataForAPI(searchQuery));  
     
     allData.issues = allData.issues.concat(data.issues);
     startAt = data.startAt + data.maxResults;
@@ -131,45 +151,42 @@ function getStories() {
 }  
 
 
-
-function printOptionsForEpic() {
+function getEpics(){
   var allData = {issues:[]};
   var data = {startAt:0,maxResults:0,total:1};
   var startAt = 0;
   
   while (data.startAt + data.maxResults < data.total) {
+    var C_MAX_RESULTS = printVal("maxNumResults")
     Logger.log("Making request for %s epics", C_MAX_RESULTS);  
     
-    data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + PropertiesService.getUserProperties().getProperty("projectKey") + "%20and%20type%20in%20(epic)%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
+    data =  JSON.parse(getDataForAPI("search?jql=project%20%3D%20" + printVal("projectKey") + "%20and%20type%20in%20(epic)%20order%20by%20created%20&maxResults=" + C_MAX_RESULTS + "&startAt=" + startAt));  
     
     allData.issues = allData.issues.concat(data.issues);
     startAt = data.startAt + data.maxResults;
-  }  
-  
-  var html = '';
-  var diLength = data.issues.length;
-  for (var i=0; i<diLength; i++) {
-    html = html + '<option value="'+ data.issues[i].key + '">' + data.issues[i].fields.customfield_10009 + '</options>';
-  }  
-  return html;
-  
-}  
+  } 
+  return data;
+}
+
+
+
 
 
 function getDataForAPI(path) {
-   var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/api/2/" + path;
-   var digestfull = PropertiesService.getUserProperties().getProperty("digest");
+   var url = "https://" + printVal("host") + "/rest/api/2/" + path;
+   var digestfull = printVal("digest");
   
-  var headers = { "Accept":"application/json", 
+  var parameters = { "Accept":"application/json", 
                   "Content-Type":"application/json", 
                   "method": "GET",
                   "headers": {"Authorization": digestfull},
                   "muteHttpExceptions": true              
                  };
   
-  var resp = UrlFetchApp.fetch(url,headers );
+  var resp = UrlFetchApp.fetch(url,parameters );
   if (resp.getResponseCode() != 200) {
-    Browser.msgBox("Error retrieving data for url " + url + ":" + resp.getContentText());
+    var ui = SpreadsheetApp.getUi();
+    ui.alert("Error retrieving data for url " + url + ":" + resp.getContentText());
     return "";
   }  
   else {
@@ -179,11 +196,13 @@ function getDataForAPI(path) {
 }  
 
 
+
+
 function sendMetaToLogger(){
   
-  var urlAdd = "/rest/api/2/issue/createmeta?projectKeys=" + PropertiesService.getUserProperties().getProperty("projectKey") + "&expand=projects.issuetypes.fields";
-  var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + urlAdd ;
-  var digestfull = PropertiesService.getUserProperties().getProperty("digest");
+  var urlAdd = "/rest/api/2/issue/createmeta?projectKeys=" + printVal("projectKey") + "&expand=projects.issuetypes.fields";
+  var url = "https://" + printVal("host") + urlAdd ;
+  var digestfull = printVal("digest");
   
   var headers = { "Accept":"application/json", 
               "Content-Type":"application/json", 
@@ -194,7 +213,8 @@ function sendMetaToLogger(){
   
   var resp = UrlFetchApp.fetch(url,headers );
   if (resp.getResponseCode() != 200) {
-    Browser.msgBox("Error retrieving data for url " + url + ":" + resp.getContentText());
+    var ui = SpreadsheetApp.getUi();
+    ui.alert("Error retrieving data for url " + url + ":" + resp.getContentText());
     return "";
   }  
   else {
@@ -205,81 +225,81 @@ function sendMetaToLogger(){
 
 
 
+
+
 function jiraPull(sheetName) {
   
-  //set default sheetname if missing
-  sheetName = typeof sheetName !== 'undefined' ? sheetName : PropertiesService.getUserProperties().getProperty("projectKey");
-  
-  //get the prefix and search keyword from the sheet name  
-  if (sheetName.indexOf("-") >0) {
-    var dummy = sheetName.split("-");
-    var prefix = dummy[0];
-    var searchKeyword = dummy[1];
-    PropertiesService.getUserProperties().setProperty("searchKeyword",searchKeyword);
-  } else {
-    var prefix = sheetName;
-    PropertiesService.getUserProperties().setProperty("searchKeyword","");
-  }
-  
-  
-  
-  //if you are on the instructins page, ask for the prefix
-  if (prefix == "Instructions") {
-    prefix = Browser.inputBox("Enter the 2 to 4 digit prefix for your Jira Project. e.g. CJ, SM or COUR", "Prefix", Browser.Buttons.OK);
-    prefix = prefix.toUpperCase();
-    var yourNewSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(prefix);
-    //if there is no sheet, create it
-    if (yourNewSheet == null) {
-      yourNewSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet();
-      yourNewSheet.setName(prefix);
-      var defaultHeadingsArray = ['Key','Status.name','Issue Type.name','Summary','Description','Story Points','Created','Updated'];
-      yourNewSheet.getRange(1, 1, 1, defaultHeadingsArray.length).setValues(defaultHeadingsArray);
-    }
-  }
-  PropertiesService.getUserProperties().setProperty("prefix", prefix.toUpperCase());
-  var ss = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-  
   var allFields = getAllFields();
-  
-  var data = getStories();
-  
   if (allFields === "" || data === "") {
-    Browser.msgBox("Error pulling data from Jira - aborting now.");
+    var ui = SpreadsheetApp.getUi();
+    ui.alert("Error pulling data from Jira - aborting now.");
     return;
   }  
+  
+  var data = getStories();
+    
+  if(sheetName){
+    printDataToSheet(data, sheetName);   
+  } else {
+    return data;    
+  }
+  
+}
 
-  var headings = ss.getRange(1, 1, 1, ss.getLastColumn()).getValues()[0];
-  var extractArray = new Array(headings.length);
-  
-  //check if there is a "." in a headings name
-  var hLength = headings.length;
-  for (var ii=0; ii<hLength; ii++) {
-    if (headings[ii].indexOf(".")) {
-       var dummy = headings[ii].split(".");
-       headings[ii] = dummy[0];
-       extractArray[ii] = dummy[1];
+
+function printDataToSheet(data,sheetName){
+   //get the prefix and search keyword from the sheet name  
+    if (sheetName.indexOf("-") >0) {
+      var dummy = sheetName.split("-");
+      var prefix = dummy[0];
+      var searchKeyword = dummy[1];
+      PropertiesService.getUserProperties().setProperty("searchKeyword",searchKeyword);
     } else {
-      extractArray = "";
+      var prefix = sheetName;
+      PropertiesService.getUserProperties().setProperty("searchKeyword","");
     }
-  }
+    
   
-  var y = new Array();
-  var diLength = data.issues.length;
-  for (var i=0; i<diLength; i++) {
-    var d=data.issues[i];
-    y.push(getStory(d,headings,allFields));
-  }  
   
-  var last = ss.getLastRow();
-  if (last >= 2) {
-    ss.getRange(2, 1, ss.getLastRow()-1,ss.getLastColumn()).clearContent();  
-  }  
-  
-  if (y.length > 0) {
-    ss.getRange(2, 1, data.issues.length,y[0].length).setValues(y);
-  }
-  
-  cleanData(sheetName);
+    //if you are on the instructions page, ask for the prefix
+    if (prefix == "Instructions") {
+      var ui = SpreadsheetApp.getUi();
+      ui.alert("You cannot do it on this sheet")
+    }
+    
+    var ss = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);   
+    var headings = ss.getRange(1, 1, 1, ss.getLastColumn()).getValues()[0];
+    var extractArray = new Array(headings.length);
+    
+    //check if there is a "." in a headings name
+    var hLength = headings.length;
+    for (var ii=0; ii<hLength; ii++) {
+      if (headings[ii].indexOf(".")) {
+        var dummy = headings[ii].split(".");
+        headings[ii] = dummy[0];
+        extractArray[ii] = dummy[1];
+      } else {
+        extractArray = "";
+      }
+    }
+    
+    var y = new Array();
+    var diLength = data.issues.length;
+    for (var i=0; i<diLength; i++) {
+      var d=data.issues[i];
+      y.push(getStory(d,headings,allFields));
+    }  
+    
+    var last = ss.getLastRow();
+    if (last >= 2) {
+      ss.getRange(2, 1, ss.getLastRow()-1,ss.getLastColumn()).clearContent();  
+    }  
+    
+    if (y.length > 0) {
+      ss.getRange(2, 1, data.issues.length,y[0].length).setValues(y);
+    }
+    
+    cleanData(sheetName);
 }
 
 
@@ -336,21 +356,7 @@ function cleanData(sheetName) {
 
 
 
-function getAllFields() {
-  
-  var theFields = getFields();
-  var allFields = new Object();
-  allFields.ids = new Array();
-  allFields.names = new Array();
-  var fLength = theFields.length;
-  for (var i=0; i<fLength; i++) {
-      allFields.ids.push(theFields[i].id);
-      allFields.names.push(theFields[i].name.toLowerCase());
-  }  
-  
-  return allFields;
-  
-}  
+
 
 
 
@@ -419,8 +425,8 @@ function getFieldName(heading,fields) {
 // see https://docs.atlassian.com/jira-software/REST/7.3.1/#agile/1.0/issue-rankIssues for details
 function updateRank(IssueMovedID,BeforeIssueID) {
   if (userIsEditor()){
-    var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/agile/1.0/issue/rank";
-    var digestfull = PropertiesService.getUserProperties().getProperty("digest");
+    var url = "https://" + printVal("host") + "/rest/agile/1.0/issue/rank";
+    var digestfull = printVal("digest");
     var payload = '{"issues":["' + IssueMovedID + '"],"rankBeforeIssue":"' + BeforeIssueID + '"}';
     var headers = { "method":"PUT",
                     "contentType":"application/json",
@@ -437,15 +443,16 @@ function updateRank(IssueMovedID,BeforeIssueID) {
       Logger.log("Success: moved item " + IssueMovedID + " above item " + BeforeIssueID);
     }    
   } else {
-    Browser.msgBox('You do not have the permission to update the ranking');
+    var ui = SpreadsheetApp.getUi();
+    ui.alert('You do not have the permission to update the ranking');
   }
 }  
 
 
 function editJiraLabel(IssueID,addLabelValue,removeLabelValue) {
   if (userIsEditor()){
-    var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/api/2/issue/" + IssueID;
-    var digestfull = PropertiesService.getUserProperties().getProperty("digest");
+    var url = "https://" + printVal("host") + "/rest/api/2/issue/" + IssueID;
+    var digestfull = printVal("digest");
     if (removeLabelValue) {
       var payload = '{ "update": { "labels": [ {"add" : "' + addLabelValue + '"},{"remove" : "' + removeLabelValue + '"}  ] } }';
     } else {
@@ -466,6 +473,7 @@ function editJiraLabel(IssueID,addLabelValue,removeLabelValue) {
       Logger.log("Success: updated label for " + IssueID + ". Added " + addLabelValue + " and removed " + removeLabelValue);
     }    
   } else {
-    Browser.msgBox('You do not have the permission to move the items');
+    var ui = SpreadsheetApp.getUi();
+    ui.alert('You do not have the permission to move the items');
   }
 } 

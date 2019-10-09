@@ -1,17 +1,12 @@
-var sheetID = "19LhOLxFuOVHx2bE5BrZQVdUDK5Re3A0T4U6Fe6c0KO8"; //needed as you cannot use getActiveSheet() while the sheet is not in use (as in a standalone application like this one)
-var favicon_url = 'https://icons.iconarchive.com/icons/iconsmind/outline/32/Quill-3-icon.png';
-
-
 // ******************************************************************************************************
 // Function to create menus when you open the sheet
 // ******************************************************************************************************
 function onOpen(){
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var menuEntries = [{name: "Configure Jira", functionName: "jiraConfigure"},
-                     {name: "Refresh Data Now", functionName: "jiraPullManual"},
-                     {name: "Schedule 4 Hourly Automatic Refresh", functionName: "scheduleRefresh"},
-                     {name: "Stop Automatic Refresh", functionName: "removeTriggers"},
-                     {name: "Log the card creation metadata", functionName: "sendMetaToLogger"}]; 
+                     {name: "Configure Editors", functionName: "editorsConfigure"},
+                     {name: "Refresh data on this sheet", functionName: "jiraPullOnSheet"}
+                    ]; 
   ss.addMenu("Jira", menuEntries);
 }
 
@@ -30,9 +25,10 @@ function doGet(e) {
        var pageTitle = "JIRA Create";
      break;      
      default:
-       var template = HtmlService.createTemplateFromFile('display');
+       var template = HtmlService.createTemplateFromFile('roadmap');
        var pageTitle = "CJ Search & Match Roadmap";
   }
+  var favicon_url = 'https://res.cloudinary.com/gabrieles/image/upload/v1536163902/quill.png';
   var htmlOutput = template.evaluate()
                    .setSandboxMode(HtmlService.SandboxMode.IFRAME)
                    .setTitle(pageTitle)
@@ -64,8 +60,12 @@ function getContent(filename) {
 
 
 function printVal(key) {
-  var dummy = PropertiesService.getUserProperties().getProperty(key);
-  return dummy;
+  if (key == 'sheetID' || key == 'host' || key == 'projectKey' || key == 'editorEmails') {
+    var propVal = PropertiesService.getScriptProperties().getProperty(key);
+  } else {
+    var propVal = PropertiesService.getUserProperties().getProperty(key);
+  }
+  return propVal;
 }
 
 
@@ -74,8 +74,8 @@ function printVal(key) {
 // ******************************************************************************************************
 function JIRAsubmit(data) {
   if (userIsEditor()){
-    var url = "https://" + PropertiesService.getUserProperties().getProperty("host") + "/rest/api/2/issue/";
-    var authVal = PropertiesService.getUserProperties().getProperty("digest");  
+    var url = "https://" + printVal("host") + "/rest/api/2/issue/";
+    var authVal = printVal("digest");  
     var options = { 
                 "Accept":"application/json", 
                 "contentType":"application/json", 
@@ -96,198 +96,135 @@ function JIRAsubmit(data) {
       Logger.log('Item has been created');
       Logger.log(STRINGresp);
       var respJSON = JSON.parse(STRINGresp);
-      Browser.msgBox('Item ' + respJSON.self + ' has been created.'); 
+      var ui = SpreadsheetApp.getUi();
+      ui.alert('Item ' + respJSON.self + ' has been created.'); 
     }  
   } else {
-    Browser.msgBox('You do not have the permission to create a new item via this interface'); 
+    var ui = SpreadsheetApp.getUi();
+    ui.alert('You do not have the permission to create a new item via this interface'); 
   }
 }
 
 
 
 
-function userIsEditor(){
-  var userEmail = Session.getActiveUser().getEmail();
-  var editorEmails = PropertiesService.getScriptProperties().getProperty("editorEmails");
-  if ( editorEmails.indexOf(userEmail) != -1 ) {
-    return true;
-  } else {  
-    var file = DriveApp.getFileById(sheetID);
-    var editors = file.getEditors();
-    var isEditor = false;
-    var eLength = editors.length
-    for (var ed=0; ed<eLength; ed++) {
-      if (editors[ed].getEmail() == userEmail ){
-        isEditor = true
-      }
-    }
-    if (file.getOwner().getEmail() == userEmail ){
-      isEditor = true
-    }
-  }
-}
 
 
 // ******************************************************************************************************
-// Generate the HTML for the display page
+// Generate the HTML for the roadmap display page
 // ******************************************************************************************************
 function printColumnsWithItems(){
-  
-  Logger.log('job started');
-  
-  var ss = SpreadsheetApp.openById(sheetID);
-  var sheetName = PropertiesService.getUserProperties().getProperty("projectKey");
-  var sheet = ss.getSheetByName(sheetName);
     
-  //get all data
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn()
-  var range = sheet.getRange(1, 1, lastRow, lastCol);
-  var allValues = range.getValues();
+  var htmlOut = {};
+  htmlOut.Parked = '';
+  htmlOut.Idea = '';
+  htmlOut.Planned = '';                     
+  htmlOut.Ongoing = '';   
+                     
+  var data = jiraPull();
+  Logger.log('data.issues.length: ' +data.issues.length)
+  for (var i=0; i<data.issues.length; i++) {
+    var issue=data.issues[i];
+    Logger.log('Issue ' + issue.key);
+    var sprintArray = issue.versionedRepresentations.customfield_10007[2]
+    var sprintState = 'nosprint';
   
-  var id_col = -1;
-  var type_col = -1;
-  var displayText_col = -1;
-  var itemLabel_col = -1;
-  var sprint_col = -1;
-  var sprintStartDate_col = -1;
-  var status_col = -1;
-  var epic_col = -1;
-  var id_col_txt = '<li>Key</li>';
-  var type_col_txt = '<li>Issuetype.name</li>';
-  var displayText_col_txt = '<li>Summary</li>';
-  var itemLabel_col_txt = '<li>Labels</li>';
-  var sprint_col_txt = '<li>Sprint.name</li>';
-  var sprintStartDate_col_txt = '<li>Sprint.startDate</li>';
-  var status_col_txt = '<li>Status.name</li>';
-  var epic_col_txt = '<li>customfield_10008</li>';
+    if (sprintArray){
+      var sprint = sprintArray[sprintArray.length-1]
+      if (sprint){
+        if(sprint.hasOwnProperty('state')){
+          sprintState = sprint.state;
+        }
+      }  
+    } 
   
-  for (var m=0; m<lastCol; m++){
-    var dummy = allValues[0][m].toLowerCase();
-    switch(dummy){
-      case "key":   
-        id_col = m;
-        id_col_txt = '';
-        break;
-      case "issuetype.name":   
-        type_col = m;
-        type_col_txt = '';
-        break;
-      case "summary":   
-        displayText_col = m;
-        displayText_col_txt = '';
-        break;  
-      case "labels":   
-        itemLabel_col = m;
-        itemLabel_col_txt = '';
-        break;  
-      case "sprint.name":   
-        sprint_col = m;
-        sprint_col_txt = '';
-        break;  
-      case "sprint.startDate":   
-        sprintStartDate_col = m;
-        sprintStartDate_col_txt = '';
-        break;  
-      case "status.name":   
-        status_col = m;
-        status_col_txt = '';
-        break;  
-      case "customfield_10008":   
-        epic_col = m;
-        epic_col_txt = '';
-        break;  
-      default:   
-        //do nothing				
-    }
-  }
-  
-  var missingColumnsHTML = id_col_txt + type_col_txt + displayText_col_txt + itemLabel_col_txt + sprint_col_txt + sprintStartDate_col_txt + status_col_txt + epic_col_txt;
-  if ( missingColumnsHTML.length == 0 ) {
-    var outHTML = '<div class="warning">' +
-                    '<h2>The information in your sheet is incomplete. Please add these columns:</h2>' +
-                    '<ul>' +
-                      missingColumnsHTML +
-                    '</ul>' +
-                  '</div>';
-  } else {
-    var htmlParked = '';
-    var htmlIdeas = '';
-    var htmlPlanned = '';
-    var htmlOngoing = '';
-    var htmlDone = '';
-  
-    var itemHasSprint = false;
-    var itemIsDone = false;
+    var issueLabels = issue.versionedRepresentations.labels[1]
+   
+    var outCol = "Idea" //default output column
     
-    for (var i=1; i<lastRow; i++) {  
-      var id = allValues[i][0];
-      var type = allValues[i][1];
-      var displayText = cleanOutput(allValues[i][2]);
-      var itemLabel = cleanOutput(allValues[i][3]);
-      var sprint = cleanOutput(allValues[i][4]);
-      var sprintStartDate = allValues[i][5];
-      var status = allValues[i][6];
-      var epic = allValues[i][7];
-    
-      if (sprint && sprintStartDate != "<null>"){  
-        htmlOngoing += createItemHMTL(id, type, displayText, epic, "Ongoing" )
-      } else if (itemLabel.indexOf("Parked") != -1) {
-        htmlParked += createItemHMTL(id, type, displayText, epic, "Parked" )
-      } else if (itemLabel.indexOf("Planned") != -1) {
-        htmlPlanned += createItemHMTL(id, type, displayText, epic, "Planned" )
-      } else {
-        htmlIdeas += createItemHMTL(id, type, displayText, epic, "Idea" ) 
+    if (issueLabels){ //change output column if it has labels
+      if (issueLabels.indexOf("Parked") != -1) {
+        outCol = 'Parked';
+      } else if (issueLabels.indexOf("Planned") != -1) {
+        outCol = 'Planned';
       }
+    }  
+    if (sprintState == 'active'){
+      outCol = 'Ongoing'     
     }
   
-    Logger.log('html items completed');
-  
-    var outHTML = '<div class="column" id="Parked-wrapper" style="display: none;">' +
-  	 	            '<h2>Parked</h2>' +
-		            '<div class="item-container sortable-area" id="Parked">' +
-		              htmlParked +
-		            '</div>' +
-                  '</div>' +
-                  '<div class="column" id="Idea-wrapper">' +
-		            '<h2>Ideas</h2>' +
-		            '<div class="item-container sortable-area" id="Idea">' +
-		              htmlIdeas +
-		            '</div>' +
-                  '</div>' +  
-                  '<div class="column" id="Planned-wrapper">' +
-		            '<h2>Planned</h2>' +
-		            '<div class="item-container sortable-area" id="Planned">' +
-		              htmlPlanned +
-		            '</div>' +
-                  '</div>' +
-                  '<div class="column" id="Ongoing-wrapper">' +
-		            '<h2>Ongoing</h2>' +
-		            '<div class="item-container" id="Ongoing">' +
-		              htmlOngoing +
-		            '</div>' +
-                  '</div>';
+    var issueKey = issue.key;
+    var issueType = issue.versionedRepresentations.issuetype[1].name;
+    var issueTitle = issue.versionedRepresentations.summary[1];
+    var epicId = issue.versionedRepresentations.customfield_10008[1];
+    htmlOut[outCol] += createItemHMTL(issueKey, issueType, issueTitle, epicId, sprintState, outCol );
+    
   }  
+ 
+  
+  var outHTML = '<div class="column" id="Parked-wrapper" style="display: none;">' +
+  	 	          '<h2>Parked</h2>' +
+		          '<div class="item-container sortable-area" id="Parked">' +
+		            htmlOut.Parked +
+		          '</div>' +
+                '</div>' +
+                '<div class="column" id="Idea-wrapper">' +
+		          '<h2>Ideas</h2>' +
+		          '<div class="item-container sortable-area" id="Idea">' +
+		            htmlOut.Idea +
+		          '</div>' +
+                '</div>' +  
+                '<div class="column" id="Planned-wrapper">' +
+		          '<h2>Planned</h2>' +
+		          '<div class="item-container sortable-area" id="Planned">' +
+		            htmlOut.Planned +
+		          '</div>' +
+                '</div>' +
+                '<div class="column" id="Ongoing-wrapper">' +
+		          '<h2>Ongoing</h2>' +
+		          '<div class="item-container" id="Ongoing">' +
+		            htmlOut.Ongoing +
+		          '</div>' +
+                '</div>';
+    
   Logger.log('outHTML completed');
   return outHTML;
 }
 
 // ******************************************************************************************************
-// Generate the HTML for an item for the display page
+// Generate the HTML for an item for the roadmap page
 // ******************************************************************************************************
-function createItemHMTL(id, type, displayText, epic, column ){
-   var itemHTML = '<li id="' + id + '" data-column="' + column + '">' +
+function createItemHMTL(key, type, displayText, epic, sprintState, column ){
+   var itemHTML = '<li id="' + key + '" class="epic-state-' +sprintState + '" data-column="' + column + '">' +
                      '<span class="drag-handle">☰</span>' +
                      '<div class="type-' + type + '">' + displayText + '</div>' +
                      '<span class="epic epic-'+ epic +'"></span>' +
-                     '<a class="link-item" href="https://jobladder.atlassian.net/browse/' + id + '" target="_blank"><i class="material-icons">launch</i></a>' +  
+                     '<a class="link-item" href="https://jobladder.atlassian.net/browse/' + key + '" target="_blank"><i class="material-icons">launch</i></a>' +  
                    '</li>'; 
    return itemHTML;
 }
 
 
+
 // ******************************************************************************************************
-// Clean the use input into something that we can embed in HTML without breaking it - from https://stackoverflow.com/questions/1787322/htmlspecialchars-equivalent-in-javascript/4835406#4835406
+// Print dropdown to choose the epic for an item
+// ******************************************************************************************************
+function printOptionsForEpic() {
+ 
+  var html = '';
+  var data = getEpics();
+  var diLength = data.issues.length;
+  for (var i=0; i<diLength; i++) {
+    html = html + '<option value="'+ data.issues[i].key + '">' + data.issues[i].fields.customfield_10009 + '</options>';
+  }  
+  return html;
+  
+}  
+
+
+
+// ******************************************************************************************************
+// Clean the input so we can embed it in HTML without breaking it - from https://stackoverflow.com/questions/1787322/htmlspecialchars-equivalent-in-javascript/4835406#4835406
 // ******************************************************************************************************
 function cleanOutput(text) {
   var map = {
@@ -299,4 +236,54 @@ function cleanOutput(text) {
   };
 
   return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+
+
+// ******************************************************************************************************
+// Function to check that the user has the permission to create items
+// ******************************************************************************************************
+function userIsEditor(){
+  var userEmail = Session.getActiveUser().getEmail();
+  var editorEmails = printVal("editorEmails");
+  if(!editorEmails){
+    return true;
+  } else {  
+    if ( editorEmails.indexOf(userEmail) != -1 ) {
+      return true;
+    } else {  
+      var sheetID = printVal('sheetID')
+      var file = DriveApp.getFileById(sheetID);
+      var editors = file.getEditors();
+      var isEditor = false;
+      var eLength = editors.length
+      for (var ed=0; ed<eLength; ed++) {
+        if (editors[ed].getEmail() == userEmail ){
+          isEditor = true
+        }
+      }
+      if (file.getOwner().getEmail() == userEmail ){
+        isEditor = true
+      }
+    }
+  }
+}
+
+
+
+// ******************************************************************************************************
+// Function to set who has permission to create items
+// ******************************************************************************************************
+function editorsConfigure(){
+  var userEmail = Session.getActiveUser().getEmail();
+  var ui = SpreadsheetApp.getUi();
+  if (file.getOwner().getEmail() == userEmail ){
+    var editorEmails = printVal("editorEmails");
+    var dummy = askToSetProperty(ui,"Add or remove emails to determine who can move items", "(the owner will always have full access)", "editorEmails");
+    if (dummy != editorEmails){
+      PropertiesService.getUserProperties().setProperty("editorEmails", dummy);
+    }
+  } else {
+    ui.alert('You do not have permission to do this. Only the file owner can');
+  }
 }

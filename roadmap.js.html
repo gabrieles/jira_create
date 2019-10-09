@@ -1,5 +1,5 @@
 <script>
-function makeDisplaySortable() {
+function makeRoadmapSortable() {
   var list = document.getElementById("acceptWrapper");
   $( "#Parked, #Idea, #Planned" ).sortable({
     connectWith: ".sortable-area",
@@ -50,22 +50,27 @@ function makeDisplaySortable() {
   }).disableSelection();
 }
 
-function toggleButton(columnID){
-  $('#' + columnID).toggle('500');
-}
 
 function refreshApp(newHtml) {
   document.open();
   document.write(newHtml);
   document.close();
 }
-      
+
+/*
 async function refreshPage(){
   $('.loader').show();
-  await google.script.run.jiraPull();
-  await google.script.run.withSuccessHandler(refreshApp).returnRoadmapHtml();
-  
+  await google.script.run.withSuccessHandler(refreshApp).returnRoadmapHtml(); 
 }
+$("#refresh-page").click(function() {
+  refreshPage();
+});
+*/
+
+$("#toggle-parked").click(function() {
+  $('#Parked-wrapper').toggle('500');
+});
+
 
 
 //non case sensitive selector from https://css-tricks.com/snippets/jquery/make-jquery-contains-case-insensitive/
