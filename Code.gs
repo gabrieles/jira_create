@@ -1,9 +1,42 @@
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+// The MIT License (MIT)
+// 
+// Copyright (c) 2019 https://github.com/gabrieles
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+
+
+
+
+// NB: before you can use this you need to publish the project via "Publish > Deploy as web app"
+// Once you do, the system will show you the URL of your web app. Visiting this url triggers the response defined in the doGet() function 
+
+
+
 // ******************************************************************************************************
-// Function to create menus when you open the sheet
+// Function to create menus when a user opens the sheet
 // ******************************************************************************************************
 function onOpen(){
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var menuEntries = [{name: "Configure Jira", functionName: "jiraConfigure"},
+  var menuEntries = [
+                     {name: "Configure Jira", functionName: "jiraConfigure"},
                      {name: "Configure Editors", functionName: "editorsConfigure"},
                      {name: "Refresh data on this sheet", functionName: "jiraPullOnSheet"}
                     ]; 
@@ -11,12 +44,13 @@ function onOpen(){
 }
 
 
+
 // ******************************************************************************************************
-// Function to display the HTML as a webApp
+// Core function to trigger the response when a user visits the web app 
 // ******************************************************************************************************
 function doGet(e) {
   
-  //pass a parameter via the URL as ?action=XXX
+  //you can pass a parameter via the URL as ?action=XXX to serve different pages
   var userAction = e.parameter.action;
   
   switch(userAction) {
@@ -26,7 +60,7 @@ function doGet(e) {
      break;      
      default:
        var template = HtmlService.createTemplateFromFile('roadmap');
-       var pageTitle = "CJ Search & Match Roadmap";
+       var pageTitle = "CJ Roadmap";
   }
   var favicon_url = 'https://res.cloudinary.com/gabrieles/image/upload/v1536163902/quill.png';
   var htmlOutput = template.evaluate()
@@ -39,19 +73,9 @@ function doGet(e) {
 };
 
 
-// ******************************************************************************************************
-// Function to return the HTML of the roadmap
-// ******************************************************************************************************
-function returnRoadmapHtml(e) {
-  var html = HtmlService
-        .createTemplateFromFile('display') // uses templated html
-        .evaluate()
-        .getContent();
-      return html;
-}
 
 // ******************************************************************************************************
-// Function to print out the content of an HTML file into another (used to load the CSS and JS)
+// Print out the content of file in this project (used for HTML, CSS and JS)
 // ******************************************************************************************************
 function getContent(filename) {
   var pageContent = HtmlService.createTemplateFromFile(filename).getRawContent();
@@ -59,6 +83,10 @@ function getContent(filename) {
 }
 
 
+
+// ******************************************************************************************************
+// Shortcut to retrieve the value of a property
+// ******************************************************************************************************
 function printVal(key) {
   if (key == 'sheetID' || key == 'host' || key == 'projectKey' || key == 'editorEmails') {
     var propVal = PropertiesService.getScriptProperties().getProperty(key);
@@ -69,179 +97,98 @@ function printVal(key) {
 }
 
 
+
 // ******************************************************************************************************
-// Function to create a new item in JIRA
+// Store the configuration used to connect to JIRA
 // ******************************************************************************************************
-function JIRAsubmit(data) {
-  if (userIsEditor()){
-    var url = "https://" + printVal("host") + "/rest/api/2/issue/";
-    var authVal = printVal("digest");  
-    var options = { 
-                "Accept":"application/json", 
-                "contentType":"application/json", 
-                "method": "POST",
-                "payload": data,
-                "headers": {"Authorization": authVal}           
-               };
-  
-  
-    var resp = UrlFetchApp.fetch(url,options);
-  
-    //if it all goes well the response should be 201 - the JIRA documentation is incorrect. See https://jira.atlassian.com/browse/JRASERVER-39339
-    if (resp.getResponseCode() != 201) {
-      Logger.log("Error retrieving data for url " + url + ":" + resp.getContentText());
-    }  
-    else {
-      var STRINGresp = resp.getContentText();
-      Logger.log('Item has been created');
-      Logger.log(STRINGresp);
-      var respJSON = JSON.parse(STRINGresp);
-      var ui = SpreadsheetApp.getUi();
-      ui.alert('Item ' + respJSON.self + ' has been created.'); 
-    }  
-  } else {
+function jiraConfigure() {
+  //only the owner can access this
+  var userEmail = Session.getActiveUser().getEmail();
+  var sheetID = SpreadsheetApp.getActiveSpreadsheet().getId();
+  var file = DriveApp.getFileById(sheetID);
+  if (file.getOwner().getEmail() == userEmail ){
+    
+    //store the sheetID automatically
+    PropertiesService.getScriptProperties().setProperty("sheetID", sheetID);
+    
     var ui = SpreadsheetApp.getUi();
-    ui.alert('You do not have the permission to create a new item via this interface'); 
-  }
-}
-
-
-
-
-
-
-// ******************************************************************************************************
-// Generate the HTML for the roadmap display page
-// ******************************************************************************************************
-function printColumnsWithItems(){
     
-  var htmlOut = {};
-  htmlOut.Parked = '';
-  htmlOut.Idea = '';
-  htmlOut.Planned = '';                     
-  htmlOut.Ongoing = '';   
-                     
-  var data = jiraPull();
-  Logger.log('data.issues.length: ' +data.issues.length)
-  for (var i=0; i<data.issues.length; i++) {
-    var issue=data.issues[i];
-    Logger.log('Issue ' + issue.key);
-    var sprintArray = issue.versionedRepresentations.customfield_10007[2]
-    var sprintState = 'nosprint';
-  
-    if (sprintArray){
-      var sprint = sprintArray[sprintArray.length-1]
-      if (sprint){
-        if(sprint.hasOwnProperty('state')){
-          sprintState = sprint.state;
-        }
-      }  
-    } 
-  
-    var issueLabels = issue.versionedRepresentations.labels[1]
-   
-    var outCol = "Idea" //default output column
+    var host = askToSetProperty(ui,"Enter the host name of your JIRA instance","Eg: jobladder.atlassian.net (Cancel to skip)", "host")
     
-    if (issueLabels){ //change output column if it has labels
-      if (issueLabels.indexOf("Parked") != -1) {
-        outCol = 'Parked';
-      } else if (issueLabels.indexOf("Planned") != -1) {
-        outCol = 'Planned';
-      }
-    }  
-    if (sprintState == 'active'){
-      outCol = 'Ongoing'     
+    var userID = askToSetProperty(ui,"Enter your Jira UserID/email","Eg: yourname@charityjob.co.uk (Cancel to skip)", "userID")
+    
+    var apiToken = askToSetProperty(ui,"Enter your Jira API Token","Get it at https://id.atlassian.com/manage/api-tokens (Cancel to skip)", "apiToken")
+    
+    if( userID && apiToken){
+      var userAndToken = userID + ':' + apiToken;
+      var x = Utilities.base64Encode(userAndToken);
+      PropertiesService.getUserProperties().setProperty("digest", "Basic " + x);
     }
-  
-    var issueKey = issue.key;
-    var issueType = issue.versionedRepresentations.issuetype[1].name;
-    var issueTitle = issue.versionedRepresentations.summary[1];
-    var epicId = issue.versionedRepresentations.customfield_10008[1];
-    htmlOut[outCol] += createItemHMTL(issueKey, issueType, issueTitle, epicId, sprintState, outCol );
     
-  }  
- 
-  
-  var outHTML = '<div class="column" id="Parked-wrapper" style="display: none;">' +
-  	 	          '<h2>Parked</h2>' +
-		          '<div class="item-container sortable-area" id="Parked">' +
-		            htmlOut.Parked +
-		          '</div>' +
-                '</div>' +
-                '<div class="column" id="Idea-wrapper">' +
-		          '<h2>Ideas</h2>' +
-		          '<div class="item-container sortable-area" id="Idea">' +
-		            htmlOut.Idea +
-		          '</div>' +
-                '</div>' +  
-                '<div class="column" id="Planned-wrapper">' +
-		          '<h2>Planned</h2>' +
-		          '<div class="item-container sortable-area" id="Planned">' +
-		            htmlOut.Planned +
-		          '</div>' +
-                '</div>' +
-                '<div class="column" id="Ongoing-wrapper">' +
-		          '<h2>Ongoing</h2>' +
-		          '<div class="item-container" id="Ongoing">' +
-		            htmlOut.Ongoing +
-		          '</div>' +
-                '</div>';
+    var projectKey = askToSetProperty(ui,"Enter your Jira Board Key", "It will be something short like 'CJ' or 'Didi' (Cancel to skip)", "projectKey");
     
-  Logger.log('outHTML completed');
-  return outHTML;
-}
-
-// ******************************************************************************************************
-// Generate the HTML for an item for the roadmap page
-// ******************************************************************************************************
-function createItemHMTL(key, type, displayText, epic, sprintState, column ){
-   var itemHTML = '<li id="' + key + '" class="epic-state-' +sprintState + '" data-column="' + column + '">' +
-                     '<span class="drag-handle">☰</span>' +
-                     '<div class="type-' + type + '">' + displayText + '</div>' +
-                     '<span class="epic epic-'+ epic +'"></span>' +
-                     '<a class="link-item" href="https://jobladder.atlassian.net/browse/' + key + '" target="_blank"><i class="material-icons">launch</i></a>' +  
-                   '</li>'; 
-   return itemHTML;
-}
-
-
-
-// ******************************************************************************************************
-// Print dropdown to choose the epic for an item
-// ******************************************************************************************************
-function printOptionsForEpic() {
- 
-  var html = '';
-  var data = getEpics();
-  var diLength = data.issues.length;
-  for (var i=0; i<diLength; i++) {
-    html = html + '<option value="'+ data.issues[i].key + '">' + data.issues[i].fields.customfield_10009 + '</options>';
-  }  
-  return html;
-  
+    var maxNumResults = askToSetProperty(ui,"Enter the max number of issues to retrieve", "1000 (Cancel to skip)", "maxNumResults");
+    
+    ui.alert("Jira configuration saved successfully.");
+  } else {
+    ui.alert("Only the file owner can complete this action");
+  }
 }  
 
 
 
 // ******************************************************************************************************
-// Clean the input so we can embed it in HTML without breaking it - from https://stackoverflow.com/questions/1787322/htmlspecialchars-equivalent-in-javascript/4835406#4835406
+// Shortcut to generate a modal to store a property value
 // ******************************************************************************************************
-function cleanOutput(text) {
-  var map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
+function askToSetProperty(ui,title,prompt,propName){
+  
+  var result = ui.prompt(title, prompt, ui.ButtonSet.OK_CANCEL);
 
-  return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+  // Process the user's response.
+  var button = result.getSelectedButton();
+  var text = result.getResponseText();
+  if (button == ui.Button.OK) {
+    // User clicked "OK".
+    if(propName == 'host' || propName == 'projectKey' || propName == 'editorEmails' ){
+      PropertiesService.getScriptProperties().setProperty(propName, text);
+    } else {
+      PropertiesService.getUserProperties().setProperty(propName, text);
+    }
+    return text;
+  } else if (button == ui.Button.CANCEL) {
+    // User clicked "Cancel".
+    //do nothing
+    return ;
+  } else if (button == ui.Button.CLOSE) {
+    // User clicked X in the title bar.
+    //do nothing
+    return ;
+  }
 }
 
 
 
 // ******************************************************************************************************
-// Function to check that the user has the permission to create items
+// Set editors - only the file owner can run this
+// ******************************************************************************************************
+function editorsConfigure(){
+  var userEmail = Session.getActiveUser().getEmail();
+  var ui = SpreadsheetApp.getUi();
+  if (file.getOwner().getEmail() == userEmail ){
+    var editorEmails = printVal("editorEmails");
+    var dummy = askToSetProperty(ui,"Add or remove emails to determine who can move items", "(the owner will always have full access)", "editorEmails");
+    if (dummy != editorEmails){
+      PropertiesService.getUserProperties().setProperty("editorEmails", dummy);
+    }
+  } else {
+    ui.alert('You do not have permission to do this. Only the file owner can');
+  }
+}
+
+
+
+// ******************************************************************************************************
+// Check that the user has the editor role
 // ******************************************************************************************************
 function userIsEditor(){
   var userEmail = Session.getActiveUser().getEmail();
@@ -271,19 +218,198 @@ function userIsEditor(){
 
 
 
+
 // ******************************************************************************************************
-// Function to set who has permission to create items
+// Return the URL of this web app. Optionally, add a string at the end of it
 // ******************************************************************************************************
-function editorsConfigure(){
-  var userEmail = Session.getActiveUser().getEmail();
-  var ui = SpreadsheetApp.getUi();
-  if (file.getOwner().getEmail() == userEmail ){
-    var editorEmails = printVal("editorEmails");
-    var dummy = askToSetProperty(ui,"Add or remove emails to determine who can move items", "(the owner will always have full access)", "editorEmails");
-    if (dummy != editorEmails){
-      PropertiesService.getUserProperties().setProperty("editorEmails", dummy);
-    }
-  } else {
-    ui.alert('You do not have permission to do this. Only the file owner can');
-  }
+function getScriptURL(addpath) {
+  var url = ScriptApp.getService().getUrl();
+  if (addpath) { url += addpath; }
+  return url;
 }
+
+
+
+// ******************************************************************************************************
+// Call JiraPull to print data on the current sheet
+// ******************************************************************************************************
+function jiraPullOnSheet() {
+  var sheetName = SpreadsheetApp.getActiveSpreadsheet().getSheetName();
+  jiraPull(sheetName);
+  var ui = SpreadsheetApp.getUi();
+  ui.alert("Jira backlog successfully imported");
+}  
+
+
+
+// ******************************************************************************************************
+// Print data on the current sheet
+// ******************************************************************************************************
+function printDataToSheet(data,sheetName){
+
+    //if you are on the instructions page, ask for the prefix
+    if (prefix == "Instructions") {
+      var ui = SpreadsheetApp.getUi();
+      ui.alert("You cannot do it on this sheet")
+    }
+    
+    var ss = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);   
+    var headings = ss.getRange(1, 1, 1, ss.getLastColumn()).getValues()[0];
+    var extractArray = new Array(headings.length);
+    
+    //check if there is a "." in a headings name
+    var hLength = headings.length;
+    for (var ii=0; ii<hLength; ii++) {
+      if (headings[ii].indexOf(".")) {
+        var dummy = headings[ii].split(".");
+        headings[ii] = dummy[0];
+        extractArray[ii] = dummy[1];
+      } else {
+        extractArray = "";
+      }
+    }
+    
+    var y = new Array();
+    var diLength = data.issues.length;
+    for (var i=0; i<diLength; i++) {
+      var d=data.issues[i];
+      y.push(getIssue(d,headings,allFields));
+    }  
+    
+    var last = ss.getLastRow();
+    if (last >= 2) {
+      ss.getRange(2, 1, ss.getLastRow()-1,ss.getLastColumn()).clearContent();  
+    }  
+    
+    if (y.length > 0) {
+      ss.getRange(2, 1, data.issues.length,y[0].length).setValues(y);
+    }
+    
+    cleanData(sheetName);
+}
+
+
+
+// ******************************************************************************************************
+// Clean up data stored in a sheet
+// ******************************************************************************************************
+function cleanData(sheetName) {
+  
+  var ss = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  var last = ss.getLastRow();
+  
+  var headings = ss.getRange(1, 1, 1, ss.getLastColumn()).getValues()[0];
+    
+  //clean up the output of columns with a "."
+  var hLength = headings.length +1;
+  for (var j=1; j<hLength; j++) {
+    var headingVal = headings[j-1]; 
+    if (headingVal.indexOf(".") != -1 ) {
+      Logger.log(headingVal);
+      var range = ss.getRange(2,j,last,j);
+      var values = range.getValues();
+      var dummyVal = headingVal.split(".")[1];
+      for (var k=0; k<last; k++) {
+        if(values[k][0].indexOf(dummyVal) != -1 ) {
+          var startExt = values[k][0].indexOf(dummyVal);
+          if (startExt > 0 ) {
+            var endExt = values[k][0].indexOf(',',startExt);     
+            values[k][0] = values[k][0].slice(startExt + dummyVal.length + 1,endExt);
+          }
+        }  
+      }
+      range.setValues(values);
+    }
+  }
+
+  //check if a column has dates in the JIRA format, and if so trim the values  
+  //var regexDate = /20\d{2}(-|\/)((0[1-9])|(1[0-2]))(-|\/)((0[1-9])|([1-2][0-9])|(3[0-1]))(T|\s)(([0-1][0-9])|(2[0-3])):([0-5][0-9]):([0-5][0-9]).([0-9][0-9][0-9]\+[0-9][0-9][0-9][0-9])/
+  var regexDate = /20\d{2}(-|\/)((0[1-9])|(1[0-2]))(-|\/)((0[1-9])|([1-2][0-9])|(3[0-1]))/
+  var testValues = ss.getRange(2, 1, 2, ss.getLastColumn()).getValues()[0];
+  var tLength = testValues.length+1;
+  for (var i=1; i<tLength; i++) {
+
+    dummyVal = testValues[i-1].slice(0, 10);
+    
+    if (dummyVal.match(regexDate)) {
+      var dateRange = ss.getRange(2,i,last,i);
+      var dateValues = dateRange.getValues();
+      for (var h=0; h<last; h++) {
+        dateValues[h][0] = dateValues[h][0].substring(0,10);
+      }
+      dateRange.setValues(dateValues);       
+    }
+  }    
+}
+
+
+
+// ******************************************************************************************************
+// Return an issue as a new array of data based on the headings
+// ******************************************************************************************************
+function getIssue(data,headings,fields) {
+  
+  var issue = [];
+  var hLength = headings.length;
+  for (var i=0; i<hLength; i++) {
+    if (headings[i] !== "") {
+      issue.push(getDataForHeading(data,headings[i].toLowerCase(),fields));
+    }  
+  }        
+  
+  return issue;
+  
+}  
+
+
+
+// ******************************************************************************************************
+// Return a value based on the heading/key 
+// ******************************************************************************************************
+function getDataForHeading(data,heading,fields) {
+  
+      if (data.hasOwnProperty(heading)) {
+        return data[heading];
+      }  
+      else if (data.fields.hasOwnProperty(heading)) {
+        return data.fields[heading];
+      }  
+  
+      var fieldName = getFieldName(heading,fields);
+  
+      if (fieldName !== "") {
+        if (data.hasOwnProperty(fieldName)) {
+          return data[fieldName];
+        }  
+        else if (data.fields.hasOwnProperty(fieldName)) {
+          return data.fields[fieldName];
+        }  
+      }
+  
+      var splitName = heading.split(" ");
+  
+      if (splitName.length == 2) {
+        if (data.fields.hasOwnProperty(splitName[0]) ) {
+          if (data.fields[splitName[0]] && data.fields[splitName[0]].hasOwnProperty(splitName[1])) {
+            return data.fields[splitName[0]][splitName[1]];
+          }
+          return "";
+        }  
+      }  
+  
+      return "Could not find value for " + heading;
+      
+}  
+
+
+
+// ******************************************************************************************************
+// Get the name/key of a field
+// ******************************************************************************************************
+function getFieldName(heading,fields) {
+  var index = fields.names.indexOf(heading);
+  if ( index > -1) {
+     return fields.ids[index]; 
+  }
+  return "";
+}  

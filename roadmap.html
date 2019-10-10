@@ -6,7 +6,7 @@
     <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <?!= getContent('sortable.js'); ?>
-    <?!= getContent('TouchPunch.js'); ?>
+    <?!= getContent('touchPunch.js'); ?>
     <?!= getContent('roadmap.css'); ?>  
   </head>
   <body>
@@ -14,7 +14,7 @@
      <div id="wrapper">
        <div id="page">
          <div id="header">
-           <a id="create-item" class="button create" target="_blank" href="https://script.google.com/macros/s/AKfycbzbKAXdS5xT3h1yqpXI66asV8Hj21ch_M_4wcXuDLtjT4TYROiE/exec?action=create">Create new</a>
+           <a id="create-item" class="button create" target="_blank" href="<?!= getScriptURL('?action=create'); ?>">Create new</a>
            <button id="toggle-parked" class="button toggle">Toggle Parked</button>
            <span id="filter-wrapper"><span id="filter-label" class="button">Filter by:</span><input id="filter" type="text" onchange="filterItems();"/></span>
          </div>
